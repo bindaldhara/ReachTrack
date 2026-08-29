@@ -11,7 +11,7 @@ In [Supabase](https://supabase.com/dashboard):
    - `supabase/migrations/20260829140000_outreach_types_gmail.sql`
 3. Copy the project URL (`https://<ref>.supabase.co`) into both `VITE_SUPABASE_URL` (web) and `SUPABASE_URL` (api).
 4. From **Settings → API Keys**, copy the publishable key (`sb_publishable_…`) into `VITE_SUPABASE_ANON_KEY`. The legacy `anon` key also works, but Supabase retires legacy keys at the end of 2026. Never put a secret or `service_role` key in `web/.env` — it ships to the browser.
-5. Click **Connect** at the top of the dashboard, copy the **Session pooler** connection string into `DATABASE_URL`, and replace `[YOUR-PASSWORD]` with your database password (resettable under **Settings → Database**). Avoid the transaction pooler on port 6543: it does not support the prepared statements `pgx` uses.
+5. Click **Connect** at the top of the dashboard, copy the **Session pooler** connection string into `DATABASE_URL`, and replace `[YOUR-PASSWORD]` with your database password (resettable under **Settings → Database**). Prefer the session pooler on port **5432** (not the transaction pooler on 6543).
 
 The API needs no JWT secret. It verifies access tokens against the public keys at `SUPABASE_URL/auth/v1/.well-known/jwks.json`.
 
@@ -22,15 +22,17 @@ Auth: **Authentication → Providers → Email** should be enabled. For local de
 ```bash
 cd api
 cp .env.example .env
-# set DATABASE_URL, SUPABASE_URL, PORT, CORS_ORIGIN
-go run ./cmd/server
+# set DATABASE_URL, SUPABASE_URL, PORT, CORS_ORIGIN, optional FOLLOW_UP_DUE_DAYS=1
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
-The API fetches the signing keys at startup and exits if `SUPABASE_URL` is wrong or unreachable.
+The API loads Supabase JWKS at startup and exits if `SUPABASE_URL` is wrong or unreachable.
 
 `CORS_ORIGIN` defaults to `http://localhost:5173`. If Vite picks another port (e.g. `5174` when `5173` is busy), add it as a comma-separated value: `http://localhost:5173,http://localhost:5174`.
 
-The module targets Go 1.25 (a requirement of the JWKS library). On an older local Go, the `go` command downloads the matching toolchain automatically on first build.
+Requires **Python 3.11+**.
 
 ## 3. Web
 
@@ -41,7 +43,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Open http://localhost:5173, sign up, and use **Companies → Contacts → Jobs → Conversations → Outreach → Reminders**.
+Open http://localhost:5173, sign up, and use **Companies → Contacts → Jobs → Outreach → Reminders**.
 
 This machine’s Node 21 works with the pinned Vite 6. Vite 8 needs Node 20.19+ or 22.12+.
 
@@ -66,9 +68,22 @@ If Vite runs on another port (e.g. `5174`), set `WEB_APP_URL` to match so the OA
 
 Restart the API after changing env vars. Tokens are stored in `gmail_connections` and never returned to the browser.
 
-## 5. Tests
+## 5. Gemini (optional — rejection detection)
+
+After Gmail sync, ReachTrack scans thread replies for **possible rejections**. If you add a [Google AI Studio](https://aistudio.google.com/apikey) API key, classification uses Gemini; otherwise it falls back to OpenAI (if configured) or keyword rules.
+
+Add to `api/.env`:
 
 ```bash
-cd api && go test ./...
+GEMINI_API_KEY=your_key_from_ai_studio
+GEMINI_MODEL=gemini-3.6-flash
+```
+
+Restart the API after changing env vars. Suggestions appear on the Outreach page until you confirm or dismiss them.
+
+## 6. Tests
+
+```bash
+cd api && .venv/bin/python -m compileall app
 cd web && npm run build
 ```

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { Fragment, useEffect, useMemo, useState } from "react"
+import { Link, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,13 +18,18 @@ import { StatusBadge } from "@/components/status-badge"
 import { useAuth } from "@/hooks/use-auth"
 import { TYPE_LABEL } from "@/lib/labels"
 import {
+  outreachFilterLabel,
+  outreachListQuery,
+  type OutreachListFilters,
+} from "@/lib/outreach-filters"
+import { outreachEmailUrl } from "@/lib/gmail"
+import {
   contactName,
   formatDate,
   fromLocalInput,
   toLocalInput,
   type Company,
   type Contact,
-  type Conversation,
   type Job,
   type OutreachEvent,
 } from "@/lib/types"
@@ -40,44 +45,65 @@ const empty = {
   contactId: "",
   companyId: "",
   jobId: "",
-  conversationId: "",
+}
+
+function filtersFromParams(params: URLSearchParams): OutreachListFilters {
+  const types = params.get("types")
+  const type = params.get("type") || undefined
+  const status = params.get("status") || undefined
+  const statusSuggestion = params.get("statusSuggestion") || undefined
+  return {
+    types: types ? types.split(",").filter(Boolean) : undefined,
+    type,
+    status,
+    statusSuggestion,
+  }
 }
 
 export function OutreachPage() {
   const { request } = useAuth()
-  const [params] = useSearchParams()
+  const [params, setSearchParams] = useSearchParams()
   const [items, setItems] = useState<OutreachEvent[]>([])
   const [contacts, setContacts] = useState<Contact[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [jobs, setJobs] = useState<Job[]>([])
-  const [conversations, setConversations] = useState<Conversation[]>([])
+  const filters = useMemo(() => filtersFromParams(params), [params])
   const [status, setStatus] = useState(params.get("status") || "all")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<OutreachEvent | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const hasListFilter = Boolean(
+    filters.types?.length || filters.type || filters.status || filters.statusSuggestion,
+  )
+  const filterLabel = outreachFilterLabel(filters)
 
-  async function load(nextStatus = status) {
-    const qs = nextStatus !== "all" ? `?status=${nextStatus}` : ""
-    const [rows, cts, cos, js, convos] = await Promise.all([
+  async function load() {
+    const qs = outreachListQuery(filters)
+    const [rows, cts, cos, js] = await Promise.all([
       request<OutreachEvent[]>(`/api/v1/outreach-events${qs}`),
       request<Contact[]>("/api/v1/contacts"),
       request<Company[]>("/api/v1/companies"),
       request<Job[]>("/api/v1/jobs"),
-      request<Conversation[]>("/api/v1/conversations"),
     ])
     setItems(rows)
     setContacts(cts)
     setCompanies(cos)
     setJobs(js)
-    setConversations(convos)
   }
 
   useEffect(() => {
-    const initial = params.get("status") || "all"
-    setStatus(initial)
-    load(initial).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
+    setStatus(params.get("status") || "all")
+    load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
   }, [request, params])
+
+  function updateStatus(nextStatus: string) {
+    setStatus(nextStatus)
+    const next = new URLSearchParams(params)
+    if (nextStatus === "all") next.delete("status")
+    else next.set("status", nextStatus)
+    setSearchParams(next)
+  }
 
   function startCreate() {
     setEditing(null)
@@ -98,7 +124,6 @@ export function OutreachPage() {
       contactId: e.contactId ?? "",
       companyId: e.companyId ?? "",
       jobId: e.jobId ?? "",
-      conversationId: e.conversationId ?? "",
     })
     setOpen(true)
   }
@@ -129,6 +154,26 @@ export function OutreachPage() {
     }
   }
 
+  async function confirmRejection(id: string) {
+    if (!confirm("Mark this outreach as rejected?")) return
+    try {
+      await request(`/api/v1/outreach-events/${id}/confirm-suggestion`, { method: "POST" })
+      toast.success("Marked as rejected")
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not confirm rejection")
+    }
+  }
+
+  async function dismissSuggestion(id: string) {
+    try {
+      await request(`/api/v1/outreach-events/${id}/dismiss-suggestion`, { method: "POST" })
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not dismiss suggestion")
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -136,13 +181,21 @@ export function OutreachPage() {
         description="Each captured action: cold email, referral, LinkedIn DM, reply, or application."
         action={<Button onClick={startCreate}>Log outreach</Button>}
       />
+      {hasListFilter ? (
+        <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Showing:</span>
+          <span className="rounded-md bg-muted px-2 py-1 font-medium">{filterLabel}</span>
+          <Link to="/outreach" className="text-primary underline underline-offset-2">
+            Clear filter
+          </Link>
+        </div>
+      ) : null}
       <div className="mb-4 max-w-xs">
         <StatusSelect
           value={status}
           allowAll
           onChange={(v) => {
-            setStatus(v)
-            load(v).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
+            updateStatus(v)
           }}
         />
       </div>
@@ -160,27 +213,50 @@ export function OutreachPage() {
           {items.length === 0 ? (
             <TableRow>
               <TableCell colSpan={5} className="text-muted-foreground">
-                No outreach events yet.
+                No outreach events match this filter.
               </TableCell>
             </TableRow>
           ) : (
             items.map((e) => (
-              <TableRow key={e.id}>
-                <TableCell className="font-medium">{e.subject || "Untitled"}</TableCell>
-                <TableCell>{TYPE_LABEL[e.type]}</TableCell>
-                <TableCell>
-                  <StatusBadge status={e.status} />
-                </TableCell>
-                <TableCell>{formatDate(e.occurredAt)}</TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => startEdit(e)}>
-                    Edit
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => remove(e.id)}>
-                    Delete
-                  </Button>
-                </TableCell>
-              </TableRow>
+              <Fragment key={e.id}>
+                <TableRow>
+                  <TableCell className="font-medium">
+                    <OutreachSubject event={e} />
+                  </TableCell>
+                  <TableCell>{TYPE_LABEL[e.type]}</TableCell>
+                  <TableCell>
+                    <StatusBadge status={e.status} />
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{formatDate(e.occurredAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button variant="ghost" size="sm" onClick={() => startEdit(e)}>
+                      Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => remove(e.id)}>
+                      Delete
+                    </Button>
+                  </TableCell>
+                </TableRow>
+                {e.statusSuggestion === "rejected" ? (
+                  <TableRow key={`${e.id}-suggestion`} className="bg-amber-500/5 hover:bg-amber-500/5">
+                    <TableCell colSpan={5} className="py-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-sm text-muted-foreground">
+                          This reply may be a rejection. Mark it as rejected?
+                        </p>
+                        <div className="flex shrink-0 flex-wrap gap-2">
+                          <Button size="sm" onClick={() => confirmRejection(e.id)}>
+                            Mark rejected
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => dismissSuggestion(e.id)}>
+                            Not a rejection
+                          </Button>
+                        </div>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </Fragment>
             ))
           )}
         </TableBody>
@@ -216,14 +292,6 @@ export function OutreachPage() {
                 type="datetime-local"
                 value={form.occurredAt}
                 onChange={(e) => setForm({ ...form, occurredAt: e.target.value })}
-              />
-            </Field>
-            <Field label="Conversation">
-              <RelatedSelect
-                value={form.conversationId}
-                onChange={(conversationId) => setForm({ ...form, conversationId })}
-                options={conversations.map((c) => ({ id: c.id, label: c.subject || "Untitled thread" }))}
-                placeholder="Conversation"
               />
             </Field>
             <Field label="Contact">
@@ -262,5 +330,22 @@ export function OutreachPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+function OutreachSubject({ event }: { event: OutreachEvent }) {
+  const title = event.subject || "Untitled"
+  const url = outreachEmailUrl(event)
+  if (!url) return title
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="underline-offset-2 hover:underline"
+      title="Open in Gmail"
+    >
+      {title}
+    </a>
   )
 }

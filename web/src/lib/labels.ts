@@ -13,7 +13,7 @@ export type Status = (typeof STATUSES)[number]
 export const STATUS_LABEL: Record<Status, string> = {
   sent: "Sent",
   waiting: "Waiting",
-  replied: "Replied",
+  replied: "Company replied",
   follow_up_due: "Follow-up Due",
   interview: "Interview",
   rejected: "Rejected",
@@ -39,7 +39,7 @@ export const TYPE_LABEL: Record<OutreachType, string> = {
   linkedin_reply: "LinkedIn reply",
   application: "Application",
   follow_up: "Follow-up",
-  email_reply: "Email reply",
+  email_reply: "Your reply",
 }
 
 export const CHANNELS = ["gmail", "linkedin", "careers_page", "other"] as const

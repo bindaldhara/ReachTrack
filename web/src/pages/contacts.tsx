@@ -119,6 +119,7 @@ export function ContactsPage() {
         <TableHeader>
           <TableRow>
             <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
             <TableHead>Title</TableHead>
             <TableHead>Company</TableHead>
             <TableHead className="w-40" />
@@ -127,7 +128,7 @@ export function ContactsPage() {
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
+              <TableCell colSpan={5} className="text-muted-foreground">
                 No contacts yet.
               </TableCell>
             </TableRow>
@@ -135,6 +136,7 @@ export function ContactsPage() {
             items.map((c) => (
               <TableRow key={c.id}>
                 <TableCell className="font-medium">{contactName(c)}</TableCell>
+                <TableCell className="text-muted-foreground">{c.email || "—"}</TableCell>
                 <TableCell>{c.title || "—"}</TableCell>
                 <TableCell>{companyName(c.companyId)}</TableCell>
                 <TableCell className="text-right">

@@ -4,7 +4,9 @@ import { Mail, RefreshCw, Unplug } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import type { GmailConnectionStatus, GmailSyncResult } from "@/lib/types"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import type { GmailConnectionStatus, GmailScanRejectionsResult, GmailSyncResult } from "@/lib/types"
 import { TYPE_LABEL, type OutreachType } from "@/lib/labels"
 import { formatDate } from "@/lib/types"
 import { useAuth } from "@/hooks/use-auth"
@@ -15,6 +17,7 @@ export function GmailIntegrationCard() {
   const [status, setStatus] = useState<GmailConnectionStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
+  const [importDate, setImportDate] = useState("2026-08-25")
 
   const refresh = useCallback(async () => {
     setLoading(true)
@@ -61,12 +64,16 @@ export function GmailIntegrationCard() {
     }
   }
 
-  async function importYesterday() {
+  async function importSentMail() {
+    if (!importDate) {
+      toast.error("Pick a date to import")
+      return
+    }
     setBusy(true)
     try {
       const result = await request<GmailSyncResult>("/api/v1/integrations/gmail/sync-sent", {
         method: "POST",
-        body: JSON.stringify({ date: "yesterday" }),
+        body: JSON.stringify({ date: importDate }),
       })
       const breakdown = result.byType
         ? Object.entries(result.byType)
@@ -75,11 +82,34 @@ export function GmailIntegrationCard() {
         : ""
       toast.success(
         breakdown
-          ? `Imported ${result.imported}, updated ${result.updated} from ${result.date}: ${breakdown}`
+          ? `Imported ${result.imported}, updated ${result.updated} from ${result.date}: ${breakdown}${
+              result.rejectionsSuggested
+                ? ` · ${result.rejectionsSuggested} possible rejection${result.rejectionsSuggested === 1 ? "" : "s"}`
+                : ""
+            }`
           : `Imported ${result.imported} email${result.imported === 1 ? "" : "s"} from ${result.date}`,
       )
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function scanRejections() {
+    setBusy(true)
+    try {
+      const result = await request<GmailScanRejectionsResult>(
+        "/api/v1/integrations/gmail/scan-rejections",
+        { method: "POST" },
+      )
+      toast.success(
+        result.suggested
+          ? `Found ${result.suggested} possible rejection${result.suggested === 1 ? "" : "s"} (${result.scanned} threads scanned)`
+          : `No new rejections found (${result.scanned} threads scanned)`,
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Rejection scan failed")
     } finally {
       setBusy(false)
     }
@@ -118,9 +148,22 @@ export function GmailIntegrationCard() {
               <p className="font-medium">{status.email}</p>
               <p className="text-muted-foreground">Connected {formatDate(status.connectedAt ?? null)}</p>
             </div>
-            <Button type="button" disabled={busy} onClick={importYesterday}>
+            <div className="space-y-2">
+              <Label htmlFor="gmail-import-date">Sent mail date</Label>
+              <Input
+                id="gmail-import-date"
+                type="date"
+                value={importDate}
+                onChange={(e) => setImportDate(e.target.value)}
+                disabled={busy}
+              />
+            </div>
+            <Button type="button" disabled={busy || !importDate} onClick={importSentMail}>
               <RefreshCw className={`size-4 ${busy ? "animate-spin" : ""}`} />
-              {busy ? "Importing sent mail…" : "Import yesterday's sent mail"}
+              {busy ? "Importing sent mail…" : "Import sent mail"}
+            </Button>
+            <Button type="button" variant="secondary" disabled={busy} onClick={scanRejections}>
+              Scan for rejections
             </Button>
             <Button type="button" variant="outline" disabled={busy} onClick={disconnect}>
               <Unplug className="size-4" />

@@ -3,9 +3,48 @@ import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusBadge } from "@/components/status-badge"
 import { useAuth } from "@/hooks/use-auth"
-import { STATUSES, STATUS_LABEL } from "@/lib/labels"
+import { FIRST_MAIL_TYPES, outreachPagePath } from "@/lib/outreach-filters"
 import type { OutreachEvent, Reminder, Stats } from "@/lib/types"
 import { formatDate } from "@/lib/types"
+
+const DASHBOARD_METRICS = [
+  {
+    key: "firstMailSent" as const,
+    label: "First-time mail sent",
+    hint: "Cold emails, referrals, applications",
+    to: outreachPagePath({ types: FIRST_MAIL_TYPES }),
+  },
+  {
+    key: "followUpsTaken" as const,
+    label: "Took follow-up",
+    hint: "Follow-up messages you sent",
+    to: outreachPagePath({ type: "follow_up" }),
+  },
+  {
+    key: "replies" as const,
+    label: "Replies",
+    hint: "Company replied (not rejections or interviews)",
+    to: outreachPagePath({ status: "replied" }),
+  },
+  {
+    key: "possibleRejections" as const,
+    label: "Possible rejections",
+    hint: "AI-detected — review and confirm on Outreach",
+    to: outreachPagePath({ statusSuggestion: "rejected" }),
+  },
+  {
+    key: "rejections" as const,
+    label: "Rejections",
+    hint: "Confirmed after you mark a suggestion as rejected",
+    to: outreachPagePath({ types: FIRST_MAIL_TYPES, status: "rejected" }),
+  },
+  {
+    key: "followUpDue" as const,
+    label: "Follow-up due",
+    hint: "No reply after 1+ days — time to nudge",
+    to: outreachPagePath({ types: FIRST_MAIL_TYPES, status: "follow_up_due" }),
+  },
+]
 
 export function OverviewPage() {
   const { request } = useAuth()
@@ -38,42 +77,47 @@ export function OverviewPage() {
   if (error) {
     return (
       <p className="text-sm text-destructive">
-        {error}. Confirm the Go API is running and DATABASE_URL / SUPABASE_URL are set.
+        {error}. Confirm the API is running and DATABASE_URL / SUPABASE_URL are set.
       </p>
     )
   }
+
+  const dash = stats?.outreachDashboard
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-heading text-2xl font-semibold tracking-tight">Overview</h1>
         <p className="text-sm text-muted-foreground">
-          Pipeline status across outreach, conversations, and jobs.
+          Outreach pipeline from Gmail import and manual logging.
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Outreach events" value={stats?.totalOutreach ?? "—"} />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {DASHBOARD_METRICS.map(({ key, label, hint, to }) => (
+          <Link key={key} to={to} className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <Card className="transition-colors group-hover:bg-muted/40">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium group-hover:underline">{label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="font-heading text-2xl">{dash?.[key] ?? "—"}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
+                <p className="mt-2 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                  View list →
+                </p>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
         <StatCard label="Contacts" value={stats?.totalContacts ?? "—"} />
         <StatCard label="Companies" value={stats?.totalCompanies ?? "—"} />
         <StatCard label="Open reminders" value={stats?.openReminders ?? "—"} />
       </div>
-      <div>
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">Outreach by status</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-          {STATUSES.map((status) => (
-            <Link key={status} to={`/outreach?status=${status}`}>
-              <Card className="transition-colors hover:bg-muted/40">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium">{STATUS_LABEL[status]}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="font-heading text-2xl">{stats?.outreachByStatus[status] ?? 0}</p>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
-      </div>
+
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
@@ -115,6 +159,13 @@ export function OverviewPage() {
           </CardContent>
         </Card>
       </div>
+
+      <p className="text-xs text-muted-foreground">
+        Counts use rule-based Gmail classification (thread context + keywords), not AI.{" "}
+        <Link to="/outreach" className="underline underline-offset-2">
+          View all outreach
+        </Link>
+      </p>
     </div>
   )
 }

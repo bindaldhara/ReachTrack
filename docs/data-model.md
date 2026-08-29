@@ -27,7 +27,9 @@ Roles. Optional `company_id`. `status` uses the shared pipeline.
 
 ## conversations
 
-A thread with a contact on a channel (`gmail`, `linkedin`, `careers_page`, `other`). `status` is the current thread status. `last_event_at` updates when a linked outreach event is written.
+A thread with a contact on a channel (`gmail`, `linkedin`, `careers_page`, `other`). `status` is the current thread status. `last_event_at` updates when a linked outreach event is written. Gmail import sets `gmail_thread_id` and upserts one conversation per Gmail thread.
+
+| gmail_thread_id | Gmail thread id; one conversation per thread when imported from Gmail |
 
 ## outreach_events
 
@@ -40,6 +42,11 @@ One captured action.
 | source           | `manual`, `gmail`, `chrome_extension`, `mobile_share` |
 | status           | shared pipeline |
 | external_id      | Gmail message id / LinkedIn thread id; unique per `(user_id, source)` when set |
+| `status_suggestion` | Pending status change (e.g. `rejected`) — requires confirm on Outreach |
+| `status_suggestion_reason` | Why the suggestion was made (AI or rules) |
+| `status_suggestion_snippet` | Quote from the company reply |
+
+Gmail import also creates or updates `companies`, `contacts`, and `conversations`, and links them on the outreach row. Possible rejections are detected from thread reply text (Gemini if `GEMINI_API_KEY` is set, else OpenAI if `OPENAI_API_KEY` is set, else keyword rules) and stored as `status_suggestion` until you confirm.
 
 ## reminders
 

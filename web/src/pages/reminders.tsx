@@ -19,7 +19,6 @@ import {
   formatDate,
   fromLocalInput,
   toLocalInput,
-  type Conversation,
   type OutreachEvent,
   type Reminder,
 } from "@/lib/types"
@@ -29,7 +28,6 @@ const empty = {
   dueAt: toLocalInput(new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString()),
   notes: "",
   outreachEventId: "",
-  conversationId: "",
   completed: false,
 }
 
@@ -37,7 +35,6 @@ export function RemindersPage() {
   const { request } = useAuth()
   const [items, setItems] = useState<Reminder[]>([])
   const [events, setEvents] = useState<OutreachEvent[]>([])
-  const [conversations, setConversations] = useState<Conversation[]>([])
   const [openOnly, setOpenOnly] = useState(true)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
@@ -45,14 +42,12 @@ export function RemindersPage() {
   const [busy, setBusy] = useState(false)
 
   async function load(nextOpen = openOnly) {
-    const [rows, ev, convos] = await Promise.all([
+    const [rows, ev] = await Promise.all([
       request<Reminder[]>(`/api/v1/reminders?open=${nextOpen ? "true" : "false"}`),
       request<OutreachEvent[]>("/api/v1/outreach-events"),
-      request<Conversation[]>("/api/v1/conversations"),
     ])
     setItems(rows)
     setEvents(ev)
-    setConversations(convos)
   }
 
   useEffect(() => {
@@ -75,7 +70,6 @@ export function RemindersPage() {
       dueAt: toLocalInput(r.dueAt),
       notes: r.notes,
       outreachEventId: r.outreachEventId ?? "",
-      conversationId: r.conversationId ?? "",
       completed: Boolean(r.completedAt),
     })
     setOpen(true)
@@ -200,14 +194,6 @@ export function RemindersPage() {
                 onChange={(outreachEventId) => setForm({ ...form, outreachEventId })}
                 options={events.map((e) => ({ id: e.id, label: e.subject || "Untitled" }))}
                 placeholder="Outreach event"
-              />
-            </Field>
-            <Field label="Conversation">
-              <RelatedSelect
-                value={form.conversationId}
-                onChange={(conversationId) => setForm({ ...form, conversationId })}
-                options={conversations.map((c) => ({ id: c.id, label: c.subject || "Untitled thread" }))}
-                placeholder="Conversation"
               />
             </Field>
             <label className="flex items-center gap-2 text-sm">

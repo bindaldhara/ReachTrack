@@ -13,6 +13,8 @@ export type GmailSyncResult = {
   imported: number
   updated: number
   byType?: Record<string, number>
+  rejectionsScanned?: number
+  rejectionsSuggested?: number
 }
 
 export type Profile = {
@@ -91,6 +93,10 @@ export type OutreachEvent = {
   subject: string
   body: string
   externalId: string | null
+  gmailThreadId: string | null
+  statusSuggestion: "rejected" | null
+  statusSuggestionReason: string
+  statusSuggestionSnippet: string
   occurredAt: string
   createdAt: string
   updatedAt: string
@@ -109,7 +115,23 @@ export type Reminder = {
   updatedAt: string
 }
 
+export type OutreachDashboard = {
+  firstMailSent: number
+  followUpsTaken: number
+  replies: number
+  rejections: number
+  possibleRejections: number
+  waiting: number
+  followUpDue: number
+}
+
+export type GmailScanRejectionsResult = {
+  scanned: number
+  suggested: number
+}
+
 export type Stats = {
+  outreachDashboard: OutreachDashboard
   outreachByStatus: Record<string, number>
   conversationsByStatus: Record<string, number>
   jobsByStatus: Record<string, number>

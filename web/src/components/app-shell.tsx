@@ -5,7 +5,6 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
-  MessageSquare,
   Send,
   UserRound,
   Users,
@@ -20,7 +19,6 @@ import { cn } from "@/lib/utils"
 const links = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/outreach", label: "Outreach", icon: Send },
-  { to: "/conversations", label: "Conversations", icon: MessageSquare },
   { to: "/contacts", label: "Contacts", icon: Users },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/jobs", label: "Jobs", icon: Briefcase },
