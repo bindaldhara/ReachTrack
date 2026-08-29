@@ -1,0 +1,209 @@
+import { useEffect, useState } from "react"
+import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import { Field, RelatedSelect } from "@/components/fields"
+import { PageHeader } from "@/components/page-header"
+import { useAuth } from "@/hooks/use-auth"
+import { contactName, type Company, type Contact } from "@/lib/types"
+
+const empty = {
+  firstName: "",
+  lastName: "",
+  email: "",
+  linkedinUrl: "",
+  title: "",
+  notes: "",
+  companyId: "",
+}
+
+export function ContactsPage() {
+  const { request } = useAuth()
+  const [items, setItems] = useState<Contact[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [q, setQ] = useState("")
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Contact | null>(null)
+  const [form, setForm] = useState(empty)
+  const [busy, setBusy] = useState(false)
+
+  async function load(search = q) {
+    const [contacts, cos] = await Promise.all([
+      request<Contact[]>(`/api/v1/contacts?q=${encodeURIComponent(search)}`),
+      request<Company[]>("/api/v1/companies"),
+    ])
+    setItems(contacts)
+    setCompanies(cos)
+  }
+
+  useEffect(() => {
+    load("").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
+  }, [request])
+
+  function startCreate() {
+    setEditing(null)
+    setForm(empty)
+    setOpen(true)
+  }
+
+  function startEdit(c: Contact) {
+    setEditing(c)
+    setForm({
+      firstName: c.firstName,
+      lastName: c.lastName,
+      email: c.email ?? "",
+      linkedinUrl: c.linkedinUrl ?? "",
+      title: c.title,
+      notes: c.notes,
+      companyId: c.companyId ?? "",
+    })
+    setOpen(true)
+  }
+
+  async function save() {
+    setBusy(true)
+    try {
+      const body = JSON.stringify(form)
+      if (editing) await request(`/api/v1/contacts/${editing.id}`, { method: "PUT", body })
+      else await request("/api/v1/contacts", { method: "POST", body })
+      setOpen(false)
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete this contact?")) return
+    try {
+      await request(`/api/v1/contacts/${id}`, { method: "DELETE" })
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed")
+    }
+  }
+
+  const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name ?? "—"
+
+  return (
+    <div>
+      <PageHeader
+        title="Contacts"
+        description="People you email, message, or ask for referrals."
+        action={<Button onClick={startCreate}>Add contact</Button>}
+      />
+      <form
+        className="mb-4 flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
+        }}
+      >
+        <Input placeholder="Search name, email, title" value={q} onChange={(e) => setQ(e.target.value)} />
+        <Button type="submit" variant="outline">
+          Search
+        </Button>
+      </form>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Title</TableHead>
+            <TableHead>Company</TableHead>
+            <TableHead className="w-40" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.length === 0 ? (
+            <TableRow>
+              <TableCell colSpan={4} className="text-muted-foreground">
+                No contacts yet.
+              </TableCell>
+            </TableRow>
+          ) : (
+            items.map((c) => (
+              <TableRow key={c.id}>
+                <TableCell className="font-medium">{contactName(c)}</TableCell>
+                <TableCell>{c.title || "—"}</TableCell>
+                <TableCell>{companyName(c.companyId)}</TableCell>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(c)}>
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(c.id)}>
+                    Delete
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit contact" : "New contact"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="First name">
+                <Input
+                  value={form.firstName}
+                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                />
+              </Field>
+              <Field label="Last name">
+                <Input
+                  value={form.lastName}
+                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                />
+              </Field>
+            </div>
+            <Field label="Title">
+              <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} />
+            </Field>
+            <Field label="Company">
+              <RelatedSelect
+                value={form.companyId}
+                onChange={(companyId) => setForm({ ...form, companyId })}
+                options={companies.map((c) => ({ id: c.id, label: c.name }))}
+                placeholder="Company"
+              />
+            </Field>
+            <Field label="Email">
+              <Input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </Field>
+            <Field label="LinkedIn URL">
+              <Input
+                value={form.linkedinUrl}
+                onChange={(e) => setForm({ ...form, linkedinUrl: e.target.value })}
+              />
+            </Field>
+            <Field label="Notes">
+              <Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={save} disabled={busy}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}

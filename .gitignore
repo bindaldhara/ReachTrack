@@ -1,0 +1,22 @@
+.DS_Store
+.env
+.env.local
+.env.*.local
+*.log
+
+# Go
+api/bin/
+api/tmp/
+*.exe
+*.test
+*.out
+
+# Node
+web/node_modules/
+web/dist/
+web/.vite/
+
+# IDE
+.idea/
+.vscode/
+*.swp
