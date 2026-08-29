@@ -1,5 +1,20 @@
 import type { Channel, OutreachType, ReminderKind, Source, Status } from "@/lib/labels"
 
+export type GmailConnectionStatus = {
+  connected: boolean
+  email?: string
+  connectedAt?: string
+  scopes?: string
+}
+
+export type GmailSyncResult = {
+  date: string
+  fetched: number
+  imported: number
+  updated: number
+  byType?: Record<string, number>
+}
+
 export type Profile = {
   id: string
   email: string

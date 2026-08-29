@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Field } from "@/components/fields"
 import { PageHeader } from "@/components/page-header"
+import { GmailIntegrationCard } from "@/components/gmail-integration"
 import { useAuth } from "@/hooks/use-auth"
 
 export function ProfilePage() {
@@ -58,6 +59,9 @@ export function ProfilePage() {
           </form>
         </CardContent>
       </Card>
+      <div className="mt-6">
+        <GmailIntegrationCard />
+      </div>
     </div>
   )
 }

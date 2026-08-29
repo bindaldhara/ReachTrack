@@ -26,6 +26,8 @@ export const TYPES = [
   "linkedin_dm",
   "linkedin_reply",
   "application",
+  "follow_up",
+  "email_reply",
 ] as const
 
 export type OutreachType = (typeof TYPES)[number]
@@ -36,6 +38,8 @@ export const TYPE_LABEL: Record<OutreachType, string> = {
   linkedin_dm: "LinkedIn DM",
   linkedin_reply: "LinkedIn reply",
   application: "Application",
+  follow_up: "Follow-up",
+  email_reply: "Email reply",
 }
 
 export const CHANNELS = ["gmail", "linkedin", "careers_page", "other"] as const

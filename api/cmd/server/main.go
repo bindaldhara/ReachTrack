@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 
 	"reachtrack/internal/auth"
 	"reachtrack/internal/config"
+	"reachtrack/internal/gmail"
 	"reachtrack/internal/handler"
 	"reachtrack/internal/store"
 )
@@ -39,16 +41,34 @@ func main() {
 		os.Exit(1)
 	}
 
+	var gmailSvc *gmail.Service
+	if cfg.Gmail.ClientID != "" {
+		gmailSvc, err = gmail.New(
+			cfg.Gmail.ClientID,
+			cfg.Gmail.ClientSecret,
+			cfg.Gmail.RedirectURI,
+			cfg.Gmail.WebAppURL,
+			cfg.Gmail.StateSecret,
+		)
+		if err != nil && !errors.Is(err, gmail.ErrNotConfigured) {
+			log.Error("gmail", "err", err)
+			os.Exit(1)
+		}
+	} else {
+		log.Info("gmail oauth disabled", "reason", "GOOGLE_CLIENT_ID not set")
+	}
+
 	api := &handler.API{
 		Store:    store.New(pool),
 		Verifier: verifier,
+		Gmail:    gmailSvc,
 	}
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,
 		Handler:      handler.NewRouter(api, cfg.CORSOrigin),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  30 * time.Second,
+		WriteTimeout: 5 * time.Minute,
 		IdleTimeout:  60 * time.Second,
 	}
 

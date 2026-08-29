@@ -13,6 +13,15 @@ type Config struct {
 	DatabaseURL string
 	SupabaseURL string
 	CORSOrigin  string
+	Gmail       GmailConfig
+}
+
+type GmailConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURI  string
+	WebAppURL    string
+	StateSecret  string
 }
 
 func Load() (Config, error) {
@@ -24,6 +33,13 @@ func Load() (Config, error) {
 		DatabaseURL: os.Getenv("DATABASE_URL"),
 		SupabaseURL: strings.TrimSuffix(strings.TrimSpace(os.Getenv("SUPABASE_URL")), "/"),
 		CORSOrigin:  getenv("CORS_ORIGIN", "http://localhost:5173"),
+		Gmail: GmailConfig{
+			ClientID:     strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID")),
+			ClientSecret: strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET")),
+			RedirectURI:  getenv("GMAIL_REDIRECT_URI", "http://localhost:8080/api/v1/integrations/gmail/callback"),
+			WebAppURL:    getenv("WEB_APP_URL", "http://localhost:5173"),
+			StateSecret:  strings.TrimSpace(os.Getenv("OAUTH_STATE_SECRET")),
+		},
 	}
 	if cfg.DatabaseURL == "" {
 		return Config{}, fmt.Errorf("DATABASE_URL is required")

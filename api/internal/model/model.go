@@ -34,6 +34,8 @@ var Types = []string{
 	"linkedin_dm",
 	"linkedin_reply",
 	"application",
+	"follow_up",
+	"email_reply",
 }
 
 var Channels = []string{
@@ -148,6 +150,35 @@ type Reminder struct {
 	CompletedAt     *time.Time `db:"completed_at" json:"completedAt"`
 	CreatedAt       time.Time  `db:"created_at" json:"createdAt"`
 	UpdatedAt       time.Time  `db:"updated_at" json:"updatedAt"`
+}
+
+type GmailConnection struct {
+	ID             uuid.UUID  `db:"id" json:"id"`
+	UserID         uuid.UUID  `db:"user_id" json:"userId"`
+	GoogleEmail    string     `db:"google_email" json:"googleEmail"`
+	AccessToken    string     `db:"access_token" json:"-"`
+	RefreshToken   string     `db:"refresh_token" json:"-"`
+	TokenExpiresAt time.Time  `db:"token_expires_at" json:"tokenExpiresAt"`
+	Scopes         string     `db:"scopes" json:"scopes"`
+	ConnectedAt    time.Time  `db:"connected_at" json:"connectedAt"`
+	RevokedAt      *time.Time `db:"revoked_at" json:"revokedAt,omitempty"`
+	CreatedAt      time.Time  `db:"created_at" json:"createdAt"`
+	UpdatedAt      time.Time  `db:"updated_at" json:"updatedAt"`
+}
+
+type GmailConnectionStatus struct {
+	Connected   bool       `json:"connected"`
+	Email       string     `json:"email,omitempty"`
+	ConnectedAt *time.Time `json:"connectedAt,omitempty"`
+	Scopes      string     `json:"scopes,omitempty"`
+}
+
+type GmailSyncResult struct {
+	Date     string         `json:"date"`
+	Fetched  int            `json:"fetched"`
+	Imported int            `json:"imported"`
+	Updated  int            `json:"updated"`
+	ByType   map[string]int `json:"byType,omitempty"`
 }
 
 type Stats struct {

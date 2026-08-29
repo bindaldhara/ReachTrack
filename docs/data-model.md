@@ -35,7 +35,7 @@ One captured action.
 
 | Column           | Allowed values |
 |------------------|----------------|
-| type             | `cold_email`, `referral_request`, `linkedin_dm`, `linkedin_reply`, `application` |
+| type             | `cold_email`, `referral_request`, `linkedin_dm`, `linkedin_reply`, `application`, `follow_up`, `email_reply` |
 | channel          | `gmail`, `linkedin`, `careers_page`, `other` |
 | source           | `manual`, `gmail`, `chrome_extension`, `mobile_share` |
 | status           | shared pipeline |
@@ -44,6 +44,20 @@ One captured action.
 ## reminders
 
 `kind`: `follow_up`, `reply_needed`, `interview`. Optional links to an outreach event and/or conversation. `completed_at` null means open.
+
+## gmail_connections
+
+Added by `supabase/migrations/20260829130000_gmail_connections.sql`. One active row per user (`revoked_at` null).
+
+| Column            | Notes |
+|-------------------|-------|
+| google_email      | Connected Gmail address |
+| access_token      | Server-only; not exposed via API |
+| refresh_token     | Server-only; used for revoke/refresh |
+| token_expires_at  | Access token expiry |
+| scopes            | Granted OAuth scopes |
+| connected_at      | When the connection was established |
+| revoked_at        | Set on disconnect |
 
 ## Deletes
 

@@ -26,6 +26,8 @@ npm run dev
 
 Open http://localhost:5173, create an account, then add companies, contacts, jobs, conversations, outreach events, and reminders.
 
+Optional: connect Gmail from **Profile** after setting `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` in `api/.env` (see [docs/setup.md](docs/setup.md)).
+
 ## Docs
 
 - [Architecture](docs/architecture.md)

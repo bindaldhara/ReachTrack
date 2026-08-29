@@ -34,6 +34,16 @@ Sent, Waiting, Replied, Follow-up Due, Interview, Rejected, Closed
 
 Stored as `sent`, `waiting`, `replied`, `follow_up_due`, `interview`, `rejected`, `closed`.
 
+## Gmail OAuth
+
+Profile → **Connect Gmail** starts a Google OAuth flow handled by the Go API:
+
+1. `GET /api/v1/integrations/gmail/authorize` returns a Google URL (signed `state` ties the callback to the Supabase user).
+2. Google redirects to `GET /api/v1/integrations/gmail/callback`; the API exchanges the code, stores tokens in `gmail_connections`, and redirects to the web app.
+3. Tokens never leave the server. Disconnect revokes the refresh token and marks the row revoked.
+
+Gmail message import uses stored tokens to fetch sent mail and post `outreach-events` with `source=gmail` and `externalId` set to the Gmail message id (deduped per user).
+
 ## Later days (not in this slice)
 
 - Days 3–5: Gmail import posts `outreach-events` with `source=gmail`

@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"reachtrack/internal/auth"
+	"reachtrack/internal/gmail"
 	"reachtrack/internal/model"
 	"reachtrack/internal/store"
 )
@@ -21,6 +22,7 @@ import (
 type API struct {
 	Store    *store.Store
 	Verifier *auth.Verifier
+	Gmail    *gmail.Service
 }
 
 func NewRouter(a *API, corsOrigin string) http.Handler {
@@ -40,11 +42,18 @@ func NewRouter(a *API, corsOrigin string) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	r.Get("/api/v1/integrations/gmail/callback", a.gmailCallback)
+
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Use(a.requireAuth)
 		r.Get("/me", a.getMe)
 		r.Patch("/me", a.patchMe)
 		r.Get("/stats", a.getStats)
+
+		r.Get("/integrations/gmail", a.getGmailConnection)
+		r.Get("/integrations/gmail/authorize", a.gmailAuthorize)
+		r.Post("/integrations/gmail/sync-sent", a.syncGmailSent)
+		r.Delete("/integrations/gmail", a.deleteGmailConnection)
 
 		r.Get("/companies", a.listCompanies)
 		r.Post("/companies", a.createCompany)
