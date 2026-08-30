@@ -1,0 +1,15 @@
+# Render Blueprint — deploy API on the free plan
+# Dashboard: New → Blueprint → connect repo → set secret env vars manually
+
+services:
+  - type: web
+    name: reachtrack-api
+    runtime: python
+    rootDir: api
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12"
