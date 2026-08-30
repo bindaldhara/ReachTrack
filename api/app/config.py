@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     oauth_state_secret: str = ""
     follow_up_due_days: int = 1
     gmail_sync_timeout_seconds: int = 600
+    openrouter_api_key: str = ""
+    openrouter_model: str = "openrouter/free"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.6-flash"
     openai_api_key: str = ""

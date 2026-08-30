@@ -70,7 +70,9 @@ Use a free uptime monitor (e.g. [UptimeRobot](https://uptimerobot.com)) to `GET 
 | `GOOGLE_CLIENT_ID` | Optional — Gmail |
 | `GOOGLE_CLIENT_SECRET` | Optional |
 | `OAUTH_STATE_SECRET` | Random long string |
-| `GEMINI_API_KEY` | Optional |
+| `OPENROUTER_API_KEY` | Optional — [OpenRouter](https://openrouter.ai/keys) key for AI rejection detection |
+| `OPENROUTER_MODEL` | Optional — default `openrouter/free` (see [free models](https://openrouter.ai/models?q=free)) |
+| `GEMINI_API_KEY` | Optional — direct Gemini instead of OpenRouter |
 
 5. Deploy → copy the public URL (e.g. `https://reachtrack-api.onrender.com`).
 

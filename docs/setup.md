@@ -76,20 +76,36 @@ If Vite runs on another port (e.g. `5174`), set `WEB_APP_URL` to match so the OA
 
 Restart the API after changing env vars. Tokens are stored in `gmail_connections` and never returned to the browser.
 
-## 5. Gemini (optional — rejection detection)
+## 5. AI rejection detection (optional)
 
-After Gmail sync, ReachTrack scans thread replies for **possible rejections**. If you add a [Google AI Studio](https://aistudio.google.com/apikey) API key, classification uses Gemini; otherwise it falls back to OpenAI (if configured) or keyword rules.
+After Gmail sync, ReachTrack scans thread replies for **possible rejections**. Provider order:
+
+1. **OpenRouter** — if `OPENROUTER_API_KEY` is set (recommended; use `:free` models)
+2. **Gemini** — if `GEMINI_API_KEY` is set
+3. **OpenAI** — if `OPENAI_API_KEY` is set
+4. **Keyword rules** — always available as fallback
 
 The same Gmail import also reads **inbox** application confirmations from ATS/careers platforms (Greenhouse, Lever, Workday, Ashby, etc.) and from **LinkedIn Easy Apply** (`jobs-noreply@linkedin.com`). Matching emails create **Jobs** rows and appear under **Successfully applied**.
 
-Add to `api/.env`:
+### OpenRouter (free models)
+
+1. Sign up at [openrouter.ai](https://openrouter.ai) and create an API key (`sk-or-v1-...`).
+2. Pick a free model slug from [openrouter.ai/models?q=free](https://openrouter.ai/models?q=free), e.g. `openrouter/free` or `google/gemini-2.0-flash-exp:free`.
+3. Add to `api/.env`:
 
 ```bash
-GEMINI_API_KEY=your_key_from_ai_studio
-GEMINI_MODEL=gemini-3.6-flash
+OPENROUTER_API_KEY=sk-or-v1-your_key
+OPENROUTER_MODEL=openrouter/free
 ```
 
 Restart the API after changing env vars. Suggestions appear on the Outreach page until you confirm or dismiss them.
+
+### Direct Gemini (alternative)
+
+```bash
+GEMINI_API_KEY=your_key_from_ai_studio
+GEMINI_MODEL=gemini-2.0-flash
+```
 
 ## 6. Tests
 

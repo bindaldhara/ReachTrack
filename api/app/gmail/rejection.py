@@ -79,6 +79,12 @@ async def detect_rejection(text: str) -> RejectionVerdict:
         return RejectionVerdict(False, "", "", "none")
 
     settings = get_settings()
+    if settings.openrouter_api_key.strip():
+        try:
+            return await _classify_with_openrouter(cleaned, settings)
+        except Exception as exc:
+            logger.warning("openrouter rejection classify failed: %s", exc)
+
     if settings.gemini_api_key.strip():
         try:
             return await _classify_with_gemini(cleaned, settings)
@@ -134,6 +140,38 @@ async def _classify_with_gemini(text: str, settings: Settings) -> RejectionVerdi
     content = _gemini_text(payload)
     data = _parse_rejection_json(content)
     return _verdict_from_data(data, text, source="gemini")
+
+
+async def _classify_with_openrouter(text: str, settings: Settings) -> RejectionVerdict:
+    key = settings.openrouter_api_key.strip()
+    model = settings.openrouter_model.strip() or "openrouter/free"
+    base = settings.openrouter_base_url.strip().rstrip("/")
+    headers = {
+        "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": settings.web_app_base,
+        "X-Title": "ReachTrack",
+    }
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.post(
+            f"{base}/chat/completions",
+            headers=headers,
+            json={
+                "model": model,
+                "temperature": 0,
+                "messages": [
+                    {"role": "system", "content": REJECTION_PROMPT},
+                    {"role": "user", "content": text[:6000]},
+                ],
+            },
+        )
+    if response.status_code != 200:
+        raise RuntimeError(response.text.strip())
+
+    payload = response.json()
+    content = payload["choices"][0]["message"]["content"]
+    data = _parse_rejection_json(content)
+    return _verdict_from_data(data, text, source="openrouter")
 
 
 async def _classify_with_openai(text: str, settings: Settings) -> RejectionVerdict:
