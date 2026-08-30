@@ -5,10 +5,11 @@ services:
   - type: web
     name: reachtrack-api
     runtime: python
-    rootDir: api
+    # Leave Root Directory blank in the Render dashboard (repo root).
+    # Do not set it to `web` — that makes Render look for `web/api`, which fails.
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    buildCommand: pip install -r api/requirements.txt
+    startCommand: cd api && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
       - key: PYTHON_VERSION

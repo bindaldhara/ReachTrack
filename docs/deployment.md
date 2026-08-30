@@ -77,12 +77,14 @@ Use a free uptime monitor (e.g. [UptimeRobot](https://uptimerobot.com)) to `GET 
 ### Option B — Manual
 
 1. [render.com](https://render.com) → **New → Web Service** → connect repo.
-2. **Root directory:** `api`
+2. **Root directory:** leave **blank** (repo root — same as Blueprint `render.yaml`).
 3. **Runtime:** Python 3
-4. **Build command:** `pip install -r requirements.txt`
-5. **Start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+4. **Build command:** `pip install -r api/requirements.txt`
+5. **Start command:** `cd api && uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 6. **Instance type:** **Free**
 7. Same environment variables as above.
+
+**Alternative:** set **Root directory** to `api` and use `pip install -r requirements.txt` plus `uvicorn app.main:app ...` (paths relative to `api/`). Do **not** use `web` as the root directory for the API service.
 
 ### Google OAuth
 
@@ -172,6 +174,7 @@ Update `VITE_API_URL`, `CORS_ORIGIN`, `WEB_APP_URL`, Supabase URLs, and Google r
 | API won’t start | Check `DATABASE_URL` and `SUPABASE_URL` |
 | Gmail sync times out | API may be cold — retry after ~1 min; or ping `/health` every 14 min |
 | Render suspended my service | Used all **750 free hours** this month; wait for reset or upgrade |
+| `Root directory "api" does not exist` | **Settings → Build & Deploy → Root Directory** must be **blank** (repo root) with current `render.yaml`, or exactly `api` if build commands omit the `api/` prefix. Clear `web` or any other value, save, then **Manual Deploy** |
 
 ---
 
