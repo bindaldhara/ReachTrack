@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
+import { AnimatedStat } from "@/components/animated-stat"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { StatusSelect } from "@/components/fields"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter, ToggleFilter } from "@/components/list-filters"
@@ -10,42 +11,150 @@ import { listQuery } from "@/lib/list-query"
 import { REMINDER_KIND_LABEL } from "@/lib/labels"
 import type { OutreachEvent, Reminder, Stats } from "@/lib/types"
 import { formatDate } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+const METRIC_PALETTE = {
+  cyan: {
+    value: "text-[#00FBFF]",
+    label: "group-hover:text-[#00FBFF]",
+    chipBorder: "border-[#00FBFF]/40",
+    chipBorderActive: "border-[#00FBFF]/70",
+    chipBg: "bg-[#00FBFF]/10",
+    cardBorder: "hover:border-[#00FBFF]/50",
+    cardBorderActive: "border-[#00FBFF]/70",
+    ring: "ring-[#00FBFF]/25",
+    gradient: "from-[#00FBFF]/12",
+    glow: "shadow-[0_12px_40px_rgba(0,251,255,0.18)]",
+    chipGlow: "shadow-[0_0_20px_rgba(0,251,255,0.2)]",
+    link: "text-[#00FBFF]",
+    chipHover: "group-hover:border-[#00FBFF]/70 group-hover:bg-[#00FBFF]/15",
+  },
+  emerald: {
+    value: "text-emerald-400",
+    label: "group-hover:text-emerald-400",
+    chipBorder: "border-emerald-400/40",
+    chipBorderActive: "border-emerald-400/70",
+    chipBg: "bg-emerald-400/10",
+    cardBorder: "hover:border-emerald-400/50",
+    cardBorderActive: "border-emerald-400/70",
+    ring: "ring-emerald-400/25",
+    gradient: "from-emerald-400/12",
+    glow: "shadow-[0_12px_40px_rgba(52,211,153,0.18)]",
+    chipGlow: "shadow-[0_0_20px_rgba(52,211,153,0.2)]",
+    link: "text-emerald-400",
+    chipHover: "group-hover:border-emerald-400/70 group-hover:bg-emerald-400/15",
+  },
+  amber: {
+    value: "text-amber-400",
+    label: "group-hover:text-amber-400",
+    chipBorder: "border-amber-400/40",
+    chipBorderActive: "border-amber-400/70",
+    chipBg: "bg-amber-400/10",
+    cardBorder: "hover:border-amber-400/50",
+    cardBorderActive: "border-amber-400/70",
+    ring: "ring-amber-400/25",
+    gradient: "from-amber-400/12",
+    glow: "shadow-[0_12px_40px_rgba(251,191,36,0.18)]",
+    chipGlow: "shadow-[0_0_20px_rgba(251,191,36,0.2)]",
+    link: "text-amber-400",
+    chipHover: "group-hover:border-amber-400/70 group-hover:bg-amber-400/15",
+  },
+  rose: {
+    value: "text-rose-400",
+    label: "group-hover:text-rose-400",
+    chipBorder: "border-rose-400/40",
+    chipBorderActive: "border-rose-400/70",
+    chipBg: "bg-rose-400/10",
+    cardBorder: "hover:border-rose-400/50",
+    cardBorderActive: "border-rose-400/70",
+    ring: "ring-rose-400/25",
+    gradient: "from-rose-400/12",
+    glow: "shadow-[0_12px_40px_rgba(251,113,133,0.18)]",
+    chipGlow: "shadow-[0_0_20px_rgba(251,113,133,0.2)]",
+    link: "text-rose-400",
+    chipHover: "group-hover:border-rose-400/70 group-hover:bg-rose-400/15",
+  },
+  violet: {
+    value: "text-violet-400",
+    label: "group-hover:text-violet-400",
+    chipBorder: "border-violet-400/40",
+    chipBorderActive: "border-violet-400/70",
+    chipBg: "bg-violet-400/10",
+    cardBorder: "hover:border-violet-400/50",
+    cardBorderActive: "border-violet-400/70",
+    ring: "ring-violet-400/25",
+    gradient: "from-violet-400/12",
+    glow: "shadow-[0_12px_40px_rgba(167,139,250,0.18)]",
+    chipGlow: "shadow-[0_0_20px_rgba(167,139,250,0.2)]",
+    link: "text-violet-400",
+    chipHover: "group-hover:border-violet-400/70 group-hover:bg-violet-400/15",
+  },
+  sky: {
+    value: "text-sky-400",
+    label: "group-hover:text-sky-400",
+    chipBorder: "border-sky-400/40",
+    chipBorderActive: "border-sky-400/70",
+    chipBg: "bg-sky-400/10",
+    cardBorder: "hover:border-sky-400/50",
+    cardBorderActive: "border-sky-400/70",
+    ring: "ring-sky-400/25",
+    gradient: "from-sky-400/12",
+    glow: "shadow-[0_12px_40px_rgba(56,189,248,0.18)]",
+    chipGlow: "shadow-[0_0_20px_rgba(56,189,248,0.2)]",
+    link: "text-sky-400",
+    chipHover: "group-hover:border-sky-400/70 group-hover:bg-sky-400/15",
+  },
+} as const
+
+type MetricPalette = keyof typeof METRIC_PALETTE
 
 const DASHBOARD_METRICS = [
   {
     key: "firstMailSent" as const,
     label: "First-time mail sent",
     hint: "Cold emails you sent",
+    chip: "sent",
+    tone: "cyan" as MetricPalette,
     to: outreachPagePath({ types: OUTBOUND_FIRST_MAIL_TYPES }),
   },
   {
     key: "followUpsTaken" as const,
     label: "Took follow-up",
     hint: "Follow-up messages you sent",
+    chip: "follow-ups",
+    tone: "sky" as MetricPalette,
     to: outreachPagePath({ type: "follow_up" }),
   },
   {
     key: "replies" as const,
     label: "Replies",
     hint: "Company replied (not rejections or interviews)",
+    chip: "replies",
+    tone: "emerald" as MetricPalette,
     to: outreachPagePath({ status: "replied" }),
   },
   {
     key: "possibleRejections" as const,
     label: "Possible rejections",
     hint: "AI-detected — review and confirm on Outreach",
+    chip: "to review",
+    tone: "amber" as MetricPalette,
     to: outreachPagePath({ statusSuggestion: "rejected" }),
   },
   {
     key: "rejections" as const,
     label: "Rejections",
     hint: "Confirmed after you mark a suggestion as rejected",
+    chip: "confirmed",
+    tone: "rose" as MetricPalette,
     to: outreachPagePath({ types: OUTBOUND_FIRST_MAIL_TYPES, status: "rejected" }),
   },
   {
     key: "followUpDue" as const,
     label: "Follow-up due",
     hint: "No reply after 1+ days — time to nudge",
+    chip: "due now",
+    tone: "amber" as MetricPalette,
     to: outreachPagePath({ types: OUTBOUND_FIRST_MAIL_TYPES, status: "follow_up_due" }),
   },
 ]
@@ -58,6 +167,7 @@ export function OverviewPage() {
   const [outreachStatus, setOutreachStatus] = useState("all")
   const [outreachQ, setOutreachQ] = useState("")
   const [remindersOpen, setRemindersOpen] = useState(true)
+  const [activeMetric, setActiveMetric] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function loadRecent(status = outreachStatus, search = outreachQ) {
@@ -116,29 +226,80 @@ export function OverviewPage() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {DASHBOARD_METRICS.map(({ key, label, hint, to }) => (
-          <Link key={key} to={to} className="group block rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Card className="transition-colors group-hover:bg-muted/40">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium group-hover:underline">{label}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="font-heading text-2xl">{dash?.[key] ?? "—"}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{hint}</p>
-                <p className="mt-2 text-xs text-primary opacity-0 transition-opacity group-hover:opacity-100">
-                  View list →
-                </p>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {DASHBOARD_METRICS.map(({ key, label, hint, chip, tone, to }) => {
+          const value = dash?.[key]
+          const active = activeMetric === key
+          const palette = METRIC_PALETTE[tone]
+          return (
+            <Link
+              key={key}
+              to={to}
+              onMouseEnter={() => setActiveMetric(key)}
+              onMouseLeave={() => setActiveMetric(null)}
+              onFocus={() => setActiveMetric(key)}
+              onBlur={() => setActiveMetric(null)}
+              className="group block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00FBFF]/50"
+            >
+              <Card
+                className={cn(
+                  "relative overflow-hidden border border-white/10 transition-all duration-300",
+                  "hover:-translate-y-1",
+                  palette.cardBorder,
+                  active && cn("scale-[1.02]", palette.cardBorderActive, palette.glow),
+                  palette.ring,
+                  "ring-1",
+                )}
+              >
+                <div
+                  className={cn(
+                    "pointer-events-none absolute inset-0 bg-gradient-to-b to-transparent opacity-0 transition-opacity duration-300",
+                    palette.gradient,
+                    (active || undefined) && "opacity-100",
+                    "group-hover:opacity-100",
+                  )}
+                />
+                <CardHeader className="relative pb-2">
+                  <CardTitle className={cn("text-sm font-medium text-white/80", palette.label)}>
+                    {label}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="relative">
+                  <div className="flex items-end justify-between gap-3">
+                    <p className={cn("font-heading text-4xl font-semibold tracking-tight", palette.value)}>
+                      {typeof value === "number" ? <AnimatedStat value={value} /> : "—"}
+                    </p>
+                    <div
+                      className={cn(
+                        "flex min-w-[4.5rem] flex-col items-center rounded-md border px-2 py-1.5 transition-all duration-300",
+                        palette.chipBorder,
+                        palette.chipBg,
+                        active && cn(palette.chipBorderActive, palette.chipGlow),
+                      )}
+                    >
+                      <span className={cn("font-mono text-lg font-semibold tabular-nums", palette.value)}>
+                        {typeof value === "number" ? <AnimatedStat value={value} /> : "—"}
+                      </span>
+                      <span className="mt-0.5 text-[10px] uppercase tracking-wider text-white/40">
+                        {chip}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="mt-2 text-xs text-white/45">{hint}</p>
+                  <p className={cn("mt-2 text-xs font-medium opacity-0 transition-opacity group-hover:opacity-100", palette.link)}>
+                    View list →
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+          )
+        })}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Contacts" value={stats?.totalContacts ?? "—"} />
-        <StatCard label="Companies" value={stats?.totalCompanies ?? "—"} />
-        <StatCard label="Open reminders" value={stats?.openReminders ?? "—"} />
+      <div className="grid gap-4 sm:grid-cols-3">
+        <SummaryStatCard label="Contacts" value={stats?.totalContacts} chip="people" tone="cyan" />
+        <SummaryStatCard label="Companies" value={stats?.totalCompanies} chip="orgs" tone="violet" />
+        <SummaryStatCard label="Open reminders" value={stats?.openReminders} chip="open" tone="amber" />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -232,14 +393,48 @@ export function OverviewPage() {
   )
 }
 
-function StatCard({ label, value }: { label: string; value: number | string }) {
+function SummaryStatCard({
+  label,
+  value,
+  chip,
+  tone,
+}: {
+  label: string
+  value?: number
+  chip: string
+  tone: MetricPalette
+}) {
+  const palette = METRIC_PALETTE[tone]
   return (
-    <Card>
+    <Card
+      className={cn(
+        "group border border-white/10 transition-all duration-300 hover:-translate-y-0.5",
+        palette.cardBorder,
+        palette.glow,
+      )}
+    >
       <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
+        <CardTitle className="text-sm font-medium text-white/70">{label}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="font-heading text-2xl">{value}</p>
+        <div className="flex items-end justify-between gap-3">
+          <p className={cn("font-heading text-3xl font-semibold tabular-nums", palette.value)}>
+            {typeof value === "number" ? <AnimatedStat value={value} /> : "—"}
+          </p>
+          <div
+            className={cn(
+              "rounded-md border px-2 py-1 text-center transition-colors",
+              palette.chipBorder,
+              palette.chipBg,
+              palette.chipHover,
+            )}
+          >
+            <span className={cn("font-mono text-sm font-semibold", palette.value)}>
+              {typeof value === "number" ? <AnimatedStat value={value} /> : "—"}
+            </span>
+            <p className="text-[10px] uppercase tracking-wider text-white/40">{chip}</p>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )
