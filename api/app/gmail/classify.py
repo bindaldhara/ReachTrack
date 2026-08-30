@@ -77,11 +77,6 @@ def classify_message(
             type="application",
             status=_first_touch_status(msg, thread, user_email),
         )
-    if _is_referral(text):
-        return Classification(
-            type="referral_request",
-            status=_first_touch_status(msg, thread, user_email),
-        )
     if _is_follow_up(text):
         return Classification(type="follow_up", status=STATUS_WAITING)
 
@@ -209,20 +204,6 @@ def _is_follow_up(text: str) -> bool:
         "any update",
         "touching base",
         "just following",
-    )
-
-
-def _is_referral(text: str) -> bool:
-    return _contains_any(
-        text,
-        "referral",
-        "refer me",
-        "employee referral",
-        "introduce me",
-        "introduction to",
-        "would you refer",
-        "open to referring",
-        "refer my profile",
     )
 
 

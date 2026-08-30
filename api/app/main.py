@@ -28,11 +28,13 @@ from app.auth import AuthError, UserIdentity, Verifier, get_bearer_token
 from app.config import get_settings
 from app.db import connect
 from app.errors import NotFoundError, handle_store_error
+from app.gmail.application_confirmations import parse_application_confirmation
 from app.gmail.classify import ThreadContext, classify_message
 from app.gmail.messages import (
     GmailService,
     day_bounds,
     fetch_threads,
+    list_inbox_application_messages,
     list_sent_messages,
     yesterday_in,
 )
@@ -491,10 +493,11 @@ def create_app() -> FastAPI:
         user: Annotated[UserIdentity, Depends(require_user)],
         store: Annotated[Store, Depends(get_store)],
         q: str = "",
+        company_id: str = Query("", alias="companyId"),
         limit: int | None = Query(None),
     ):
         return await _store_call(
-            store.list_contacts(user.user_id, q, query_limit(limit))
+            store.list_contacts(user.user_id, q, company_id, query_limit(limit))
         )
 
     @router.post("/contacts", status_code=status.HTTP_201_CREATED)
@@ -681,11 +684,14 @@ def create_app() -> FastAPI:
         status_filter: str = Query("", alias="status"),
         status_suggestion: str = Query("", alias="statusSuggestion"),
         event_type: str = Query("", alias="type"),
+        channel_filter: str = Query("", alias="channel"),
+        channels_filter: str = Query("", alias="channels"),
         types_filter: str = Query("", alias="types"),
         q: str = "",
         limit: int | None = Query(None),
     ):
         types = [t.strip() for t in types_filter.split(",") if t.strip()]
+        channels = [c.strip() for c in channels_filter.split(",") if c.strip()]
         return await _store_call(
             store.list_outreach(
                 user.user_id,
@@ -695,6 +701,8 @@ def create_app() -> FastAPI:
                 q,
                 query_limit(limit),
                 status_suggestion,
+                channel_filter,
+                channels or None,
             )
         )
 
@@ -780,11 +788,13 @@ def create_app() -> FastAPI:
         user: Annotated[UserIdentity, Depends(require_user)],
         store: Annotated[Store, Depends(get_store)],
         open: str = "true",
+        kind: str = "",
+        q: str = "",
         limit: int | None = Query(None),
     ):
         open_only = open != "false"
         return await _store_call(
-            store.list_reminders(user.user_id, open_only, query_limit(limit))
+            store.list_reminders(user.user_id, open_only, kind, q, query_limit(limit))
         )
 
     @router.post("/reminders", status_code=status.HTTP_201_CREATED)
@@ -1002,6 +1012,54 @@ async def _sync_gmail_sent(
             ) from exc
         result.by_type[class_.type] = result.by_type.get(class_.type, 0) + 1
         if inserted:
+            result.imported += 1
+        else:
+            result.updated += 1
+
+    try:
+        app_messages = await list_inbox_application_messages(
+            gmail_service, access_token, refresh_token, expires_at, start, end
+        )
+    except Exception as exc:
+        logger.warning(
+            "gmail sync application inbox",
+            extra={"user": str(user_id), "err": str(exc)},
+        )
+        app_messages = []
+
+    result.applications_fetched = len(app_messages)
+    for msg in app_messages:
+        parsed = parse_application_confirmation(msg)
+        if parsed is None:
+            continue
+        body = msg.snippet.strip()
+        if msg.from_:
+            body = f"From: {msg.from_}\n\n{body}" if body else f"From: {msg.from_}"
+        try:
+            inserted = await store.import_careers_application(
+                user_id,
+                external_id=msg.id,
+                subject=msg.subject.strip(),
+                body=body,
+                gmail_thread_id=msg.thread_id or None,
+                occurred_at=msg.internal_date,
+                company_name=parsed.company_name,
+                company_domain=parsed.company_domain,
+                job_title=parsed.job_title,
+                job_url=parsed.job_url,
+                location=parsed.location,
+                ats_provider=parsed.ats_provider,
+                channel=parsed.channel,
+            )
+        except Exception as exc:
+            logger.warning(
+                "gmail sync application import",
+                extra={"user": str(user_id), "gmail_message_id": msg.id, "err": str(exc)},
+            )
+            continue
+        result.by_type["application"] = result.by_type.get("application", 0) + 1
+        if inserted:
+            result.applications_imported += 1
             result.imported += 1
         else:
             result.updated += 1

@@ -83,6 +83,10 @@ export function GmailIntegrationCard() {
       toast.success(
         breakdown
           ? `Imported ${result.imported}, updated ${result.updated} from ${result.date}: ${breakdown}${
+              result.applicationsImported
+                ? ` · ${result.applicationsImported} careers application${result.applicationsImported === 1 ? "" : "s"}`
+                : ""
+            }${
               result.rejectionsSuggested
                 ? ` · ${result.rejectionsSuggested} possible rejection${result.rejectionsSuggested === 1 ? "" : "s"}`
                 : ""
@@ -136,7 +140,7 @@ export function GmailIntegrationCard() {
           Gmail
         </CardTitle>
         <CardDescription>
-          Connect Gmail so ReachTrack can import sent outreach into your timeline.
+          Connect Gmail to import sent outreach and careers-page application confirmations.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

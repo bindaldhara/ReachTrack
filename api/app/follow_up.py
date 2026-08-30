@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 from app.config import get_settings
 from app.enums import (
+    CHANNEL_CAREERS_PAGE,
     FIRST_MAIL_TYPES,
     STATUS_FOLLOW_UP_DUE,
     STATUS_SENT,
@@ -11,6 +12,13 @@ from app.enums import (
 )
 
 OPEN_FIRST_TOUCH_STATUSES = (STATUS_SENT, STATUS_WAITING, STATUS_FOLLOW_UP_DUE)
+
+
+def follow_up_eligible_sql(alias: str) -> str:
+    return (
+        f"not ({alias}.type = 'application' "
+        f"and {alias}.channel in ('{CHANNEL_CAREERS_PAGE}', 'linkedin'))"
+    )
 
 
 def follow_up_due_days() -> int:
@@ -50,7 +58,8 @@ def no_follow_up_sent_sql(alias: str) -> str:
 def is_follow_up_due_sql(alias: str, days_param: str) -> str:
     types = ", ".join(f"'{t}'" for t in FIRST_MAIL_TYPES)
     return f"""(
-        {alias}.type in ({types})
+        {follow_up_eligible_sql(alias)}
+        and {alias}.type in ({types})
         and {alias}.status in ('waiting', 'sent', 'follow_up_due')
         and {alias}.occurred_at < now() - make_interval(days => {days_param})
         and {no_follow_up_sent_sql(alias)}
@@ -61,7 +70,7 @@ def outreach_effective_status_sql(days_param: str, alias: str = "outreach_events
     types = ", ".join(f"'{t}'" for t in FIRST_MAIL_TYPES)
     return f"""case
       when {is_follow_up_due_sql(alias, days_param)} then 'follow_up_due'
-      when {alias}.type in ({types}) and {alias}.status = 'sent' then 'waiting'
+      when {alias}.type in ({types}) and {alias}.status = 'sent' and {follow_up_eligible_sql(alias)} then 'waiting'
       else {alias}.status
     end"""
 
@@ -71,7 +80,12 @@ def resolve_first_touch_status(
     occurred_at: datetime,
     *,
     follow_up_sent: bool = False,
+    channel: str = "gmail",
 ) -> str:
+    if channel == CHANNEL_CAREERS_PAGE:
+        if status == STATUS_SENT:
+            return STATUS_WAITING
+        return status
     if follow_up_sent:
         if status in (STATUS_SENT, STATUS_WAITING, STATUS_FOLLOW_UP_DUE):
             return STATUS_WAITING
@@ -97,7 +111,8 @@ def outreach_status_sql(status: str, param_index: int) -> tuple[str, list[object
         types = ", ".join(f"'{t}'" for t in FIRST_MAIL_TYPES)
         return (
             f"""(
-                {no_follow_up_sent_sql(alias)}
+                {follow_up_eligible_sql(alias)}
+                and {no_follow_up_sent_sql(alias)}
                 and (
                   status = 'follow_up_due'
                   or (
@@ -113,7 +128,8 @@ def outreach_status_sql(status: str, param_index: int) -> tuple[str, list[object
     if status == STATUS_WAITING:
         return (
             f"""(
-                status in ('waiting', 'sent')
+                {follow_up_eligible_sql(alias)}
+                and status in ('waiting', 'sent')
                 and occurred_at >= now() - make_interval(days => ${param_index})
             )""",
             [days],

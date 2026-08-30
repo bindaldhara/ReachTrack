@@ -11,6 +11,7 @@ from urllib.parse import quote, urlencode
 import httpx
 
 from app.gmail.classify import SentMessage, ThreadContext, ThreadMessage
+from app.gmail.application_confirmations import APPLICATION_SENDER_DOMAINS
 from app.gmail.oauth import GOOGLE_TOKEN_URL, TokenSet
 
 GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me"
@@ -90,6 +91,21 @@ def _sent_query(start: datetime, end: datetime) -> str:
     )
 
 
+def _inbox_applications_query(start: datetime, end: datetime) -> str:
+    after = start.strftime("%Y/%m/%d")
+    before = end.strftime("%Y/%m/%d")
+    ats_senders = " OR ".join(
+        f"from:{domain}" for domain in sorted(APPLICATION_SENDER_DOMAINS)
+    )
+    return (
+        f"in:inbox after:{after} before:{before} "
+        f"({ats_senders} OR "
+        'subject:"thank you for applying" OR subject:"application received" OR '
+        'subject:"application submitted" OR subject:"application was sent" OR '
+        'subject:"your application")'
+    )
+
+
 async def list_sent_messages(
     service: GmailService,
     access_token: str,
@@ -129,6 +145,47 @@ async def list_sent_messages(
 
 
 ListSentMessages = list_sent_messages
+
+
+async def list_inbox_application_messages(
+    service: GmailService,
+    access_token: str,
+    refresh_token: str,
+    expires_at: datetime,
+    start: datetime,
+    end: datetime,
+) -> list[SentMessage]:
+    async with _auth_client(service, access_token, refresh_token, expires_at) as client:
+        query = _inbox_applications_query(start, end)
+
+        ids: list[dict[str, str]] = []
+        page_token = ""
+        while True:
+            params: dict[str, str] = {"q": query, "maxResults": "100"}
+            if page_token:
+                params["pageToken"] = page_token
+            url = f"{GMAIL_API_BASE}/messages?{urlencode(params)}"
+            page = await _gmail_get(client, url)
+            ids.extend(page.get("messages", []))
+            page_token = page.get("nextPageToken", "")
+            if not page_token:
+                break
+
+        out: list[SentMessage] = []
+        sem = asyncio.Semaphore(GMAIL_FETCH_CONCURRENCY)
+
+        async def fetch_one(ref: dict[str, str]) -> SentMessage | None:
+            msg_id = ref.get("id", "")
+            if not msg_id:
+                return None
+            async with sem:
+                return await _get_message(client, msg_id)
+
+        results = await asyncio.gather(*(fetch_one(ref) for ref in ids))
+        return [msg for msg in results if msg is not None]
+
+
+ListInboxApplicationMessages = list_inbox_application_messages
 
 
 async def fetch_threads(

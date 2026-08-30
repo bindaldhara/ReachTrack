@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, KindSelect, RelatedSelect } from "@/components/fields"
+import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter, ToggleFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { useAuth } from "@/hooks/use-auth"
+import { listQuery } from "@/lib/list-query"
 import { REMINDER_KIND_LABEL } from "@/lib/labels"
 import {
   formatDate,
@@ -36,14 +38,21 @@ export function RemindersPage() {
   const [items, setItems] = useState<Reminder[]>([])
   const [events, setEvents] = useState<OutreachEvent[]>([])
   const [openOnly, setOpenOnly] = useState(true)
+  const [kind, setKind] = useState("all")
+  const [q, setQ] = useState("")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Reminder | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
 
-  async function load(nextOpen = openOnly) {
+  async function load(nextOpen = openOnly, nextKind = kind, search = q) {
+    const qs = listQuery({
+      open: nextOpen ? "true" : "false",
+      kind: nextKind !== "all" ? nextKind : undefined,
+      q: search.trim() || undefined,
+    })
     const [rows, ev] = await Promise.all([
-      request<Reminder[]>(`/api/v1/reminders?open=${nextOpen ? "true" : "false"}`),
+      request<Reminder[]>(`/api/v1/reminders${qs}`),
       request<OutreachEvent[]>("/api/v1/outreach-events"),
     ])
     setItems(rows)
@@ -111,27 +120,41 @@ export function RemindersPage() {
         description="Follow-ups, replies you owe, and interview deadlines."
         action={<Button onClick={startCreate}>Add reminder</Button>}
       />
-      <div className="mb-4">
-        <Button
-          variant={openOnly ? "default" : "outline"}
-          onClick={() => {
-            setOpenOnly(true)
-            load(true).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
+      <ListFilters
+        onSubmit={() => {
+          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
+        }}
+      >
+        <SearchFilter value={q} onChange={setQ} placeholder="Notes" />
+        <FilterField label="Kind" className="w-40">
+          <KindSelect
+            value={kind}
+            allowAll
+            onChange={(v) => {
+              setKind(v)
+              load(openOnly, v, q).catch((err: unknown) =>
+                toast.error(err instanceof Error ? err.message : "Filter failed"),
+              )
+            }}
+          />
+        </FilterField>
+        <ToggleFilter
+          label="Status"
+          value={openOnly ? "open" : "all"}
+          options={[
+            { value: "open", label: "Open" },
+            { value: "all", label: "All" },
+          ]}
+          onChange={(v) => {
+            const nextOpen = v === "open"
+            setOpenOnly(nextOpen)
+            load(nextOpen, kind, q).catch((err: unknown) =>
+              toast.error(err instanceof Error ? err.message : "Filter failed"),
+            )
           }}
-        >
-          Open
-        </Button>
-        <Button
-          className="ml-2"
-          variant={!openOnly ? "default" : "outline"}
-          onClick={() => {
-            setOpenOnly(false)
-            load(false).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
-          }}
-        >
-          All
-        </Button>
-      </div>
+        />
+        <ApplyFiltersButton />
+      </ListFilters>
       <Table>
         <TableHeader>
           <TableRow>

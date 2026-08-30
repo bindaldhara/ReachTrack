@@ -9,6 +9,7 @@ import { JobsPage } from "@/pages/jobs"
 import { OutreachPage } from "@/pages/outreach"
 import { OverviewPage } from "@/pages/overview"
 import { ProfilePage } from "@/pages/profile"
+import { SuccessfullyAppliedPage } from "@/pages/successfully-applied"
 import { RemindersPage } from "@/pages/reminders"
 
 export default function App() {
@@ -22,6 +23,9 @@ export default function App() {
             <Route element={<AppShell />}>
               <Route path="/" element={<OverviewPage />} />
               <Route path="/outreach" element={<OutreachPage />} />
+              <Route path="/successfully-applied" element={<SuccessfullyAppliedPage />} />
+              <Route path="/careers-page" element={<Navigate to="/successfully-applied" replace />} />
+              <Route path="/referrals" element={<Navigate to="/outreach" replace />} />
               <Route path="/contacts" element={<ContactsPage />} />
               <Route path="/companies" element={<CompaniesPage />} />
               <Route path="/jobs" element={<JobsPage />} />

@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom"
 import {
   Building2,
   CalendarClock,
+  CircleCheck,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils"
 const links = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/outreach", label: "Outreach", icon: Send },
+  { to: "/successfully-applied", label: "Successfully applied", icon: CircleCheck },
   { to: "/contacts", label: "Contacts", icon: Users },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/jobs", label: "Jobs", icon: Briefcase },

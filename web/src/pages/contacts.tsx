@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, RelatedSelect } from "@/components/fields"
+import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { useAuth } from "@/hooks/use-auth"
+import { listQuery } from "@/lib/list-query"
 import { contactName, type Company, type Contact } from "@/lib/types"
 
 const empty = {
@@ -31,14 +33,19 @@ export function ContactsPage() {
   const [items, setItems] = useState<Contact[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [q, setQ] = useState("")
+  const [companyId, setCompanyId] = useState("")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Contact | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
 
-  async function load(search = q) {
+  async function load(search = q, nextCompanyId = companyId) {
+    const qs = listQuery({
+      q: search.trim() || undefined,
+      companyId: nextCompanyId || undefined,
+    })
     const [contacts, cos] = await Promise.all([
-      request<Contact[]>(`/api/v1/contacts?q=${encodeURIComponent(search)}`),
+      request<Contact[]>(`/api/v1/contacts${qs}`),
       request<Company[]>("/api/v1/companies"),
     ])
     setItems(contacts)
@@ -103,18 +110,28 @@ export function ContactsPage() {
         description="People you email, message, or ask for referrals."
         action={<Button onClick={startCreate}>Add contact</Button>}
       />
-      <form
-        className="mb-4 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
+      <ListFilters
+        onSubmit={() => {
           load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
-        <Input placeholder="Search name, email, title" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Button type="submit" variant="outline">
-          Search
-        </Button>
-      </form>
+        <SearchFilter value={q} onChange={setQ} placeholder="Name, email, or title" />
+        <FilterField label="Company" className="w-48">
+          <RelatedSelect
+            value={companyId}
+            onChange={(id) => {
+              setCompanyId(id)
+              load(q, id).catch((err: unknown) =>
+                toast.error(err instanceof Error ? err.message : "Filter failed"),
+              )
+            }}
+            options={companies.map((c) => ({ id: c.id, label: c.name }))}
+            placeholder="Company"
+            allowAllLabel="All companies"
+          />
+        </FilterField>
+        <ApplyFiltersButton />
+      </ListFilters>
       <Table>
         <TableHeader>
           <TableRow>

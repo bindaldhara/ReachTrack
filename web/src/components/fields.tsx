@@ -61,13 +61,22 @@ export function StatusSelect({
   )
 }
 
-export function TypeSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function TypeSelect({
+  value,
+  onChange,
+  allowAll,
+}: {
+  value: string
+  onChange: (v: string) => void
+  allowAll?: boolean
+}) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
+        {allowAll ? <SelectItem value="all">All types</SelectItem> : null}
         {TYPES.map((s) => (
           <SelectItem key={s} value={s}>
             {TYPE_LABEL[s]}
@@ -78,13 +87,22 @@ export function TypeSelect({ value, onChange }: { value: string; onChange: (v: s
   )
 }
 
-export function ChannelSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function ChannelSelect({
+  value,
+  onChange,
+  allowAll,
+}: {
+  value: string
+  onChange: (v: string) => void
+  allowAll?: boolean
+}) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
+        {allowAll ? <SelectItem value="all">All channels</SelectItem> : null}
         {CHANNELS.map((s) => (
           <SelectItem key={s} value={s}>
             {CHANNEL_LABEL[s]}
@@ -112,13 +130,22 @@ export function SourceSelect({ value, onChange }: { value: string; onChange: (v:
   )
 }
 
-export function KindSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+export function KindSelect({
+  value,
+  onChange,
+  allowAll,
+}: {
+  value: string
+  onChange: (v: string) => void
+  allowAll?: boolean
+}) {
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger className="w-full">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
+        {allowAll ? <SelectItem value="all">All kinds</SelectItem> : null}
         {REMINDER_KINDS.map((s) => (
           <SelectItem key={s} value={s}>
             {REMINDER_KIND_LABEL[s]}
@@ -134,19 +161,26 @@ export function RelatedSelect({
   onChange,
   options,
   placeholder,
+  allowAllLabel,
 }: {
   value: string
   onChange: (v: string) => void
   options: { id: string; label: string }[]
   placeholder: string
+  allowAllLabel?: string
 }) {
+  const emptyValue = allowAllLabel ? "all" : "none"
   return (
-    <Select value={value || "none"} onValueChange={(v) => onChange(v === "none" ? "" : v)}>
+    <Select value={value || emptyValue} onValueChange={(v) => onChange(v === emptyValue ? "" : v)}>
       <SelectTrigger className="w-full">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="none">None</SelectItem>
+        {allowAllLabel ? (
+          <SelectItem value="all">{allowAllLabel}</SelectItem>
+        ) : (
+          <SelectItem value="none">None</SelectItem>
+        )}
         {options.map((o) => (
           <SelectItem key={o.id} value={o.id}>
             {o.label}

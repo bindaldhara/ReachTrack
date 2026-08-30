@@ -142,6 +142,8 @@ class GmailSyncResult(CamelModel):
     by_type: dict[str, int] | None = Field(default=None, alias="byType")
     rejections_scanned: int = Field(default=0, alias="rejectionsScanned")
     rejections_suggested: int = Field(default=0, alias="rejectionsSuggested")
+    applications_fetched: int = Field(default=0, alias="applicationsFetched")
+    applications_imported: int = Field(default=0, alias="applicationsImported")
 
 
 class GmailScanRejectionsResult(CamelModel):
@@ -155,6 +157,7 @@ class OutreachDashboard(CamelModel):
     replies: int = Field(alias="replies")
     rejections: int = Field(alias="rejections")
     possible_rejections: int = Field(default=0, alias="possibleRejections")
+    careers_page_applications: int = Field(default=0, alias="careersPageApplications")
     waiting: int = Field(alias="waiting")
     follow_up_due: int = Field(alias="followUpDue")
 

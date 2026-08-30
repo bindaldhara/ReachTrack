@@ -48,6 +48,15 @@ CHANNELS: list[str] = [
     "other",
 ]
 
+CHANNEL_CAREERS_PAGE = "careers_page"
+CHANNEL_LINKEDIN = "linkedin"
+
+# Gmail-imported application confirmations (not manual outreach).
+APPLICATION_CONFIRMATION_CHANNELS: list[str] = [
+    CHANNEL_CAREERS_PAGE,
+    CHANNEL_LINKEDIN,
+]
+
 SOURCES: list[str] = [
     "manual",
     "gmail",

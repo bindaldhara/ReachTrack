@@ -6,9 +6,15 @@ from uuid import UUID
 
 import asyncpg
 
-from app.enums import DASHBOARD_OUTREACH_TYPES, FIRST_MAIL_TYPES, STATUSES
+from app.enums import (
+    APPLICATION_CONFIRMATION_CHANNELS,
+    DASHBOARD_OUTREACH_TYPES,
+    FIRST_MAIL_TYPES,
+    STATUSES,
+)
 from app.follow_up import (
     follow_up_due_days,
+    follow_up_eligible_sql,
     is_follow_up_due_sql,
     no_follow_up_sent_sql,
     outreach_effective_status_sql,
@@ -318,10 +324,21 @@ class Store:
         first_mail_sent = await self.pool.fetchval(
             """
             select count(*)::int from outreach_events
-            where user_id = $1 and type = any($2::text[])
+            where user_id = $1
+              and type = any($2::text[])
+              and channel <> 'careers_page'
             """,
             user_id,
             FIRST_MAIL_TYPES,
+        )
+        careers_page_applications = await self.pool.fetchval(
+            """
+            select count(*)::int from outreach_events
+            where user_id = $1 and type = 'application'
+              and channel = any($2::text[])
+            """,
+            user_id,
+            APPLICATION_CONFIRMATION_CHANNELS,
         )
         follow_ups_taken = await self.pool.fetchval(
             """
@@ -357,9 +374,10 @@ class Store:
             FIRST_MAIL_TYPES,
         )
         waiting = await self.pool.fetchval(
-            """
+            f"""
             select count(*)::int from outreach_events
             where user_id = $1 and type = any($2::text[])
+              and {follow_up_eligible_sql("outreach_events")}
               and status in ('waiting', 'sent')
               and occurred_at >= now() - make_interval(days => $3)
             """,
@@ -371,6 +389,7 @@ class Store:
             f"""
             select count(*)::int from outreach_events
             where user_id = $1 and type = any($2::text[])
+              and {follow_up_eligible_sql("outreach_events")}
               and {no_follow_up_sent_sql("outreach_events")}
               and (
                 status = 'follow_up_due'
@@ -388,6 +407,7 @@ class Store:
         return Stats(
             outreachDashboard=OutreachDashboard(
                 firstMailSent=first_mail_sent or 0,
+                careersPageApplications=careers_page_applications or 0,
                 followUpsTaken=follow_ups_taken or 0,
                 replies=replies or 0,
                 rejections=rejections or 0,
@@ -478,7 +498,7 @@ class Store:
             raise NotFoundError()
 
     async def list_contacts(
-        self, user_id: UUID, q: str, limit: int
+        self, user_id: UUID, q: str, company_id: str, limit: int
     ) -> list[Contact]:
         like = _like_query(q)
         rows = await self.pool.fetch(
@@ -487,11 +507,13 @@ class Store:
             from contacts
             where user_id = $1
               and ($2 = '' or first_name ilike $2 or last_name ilike $2 or coalesce(email, '') ilike $2 or title ilike $2)
+              and ($3 = '' or company_id::text = $3)
             order by last_name, first_name
-            limit $3
+            limit $4
             """,
             user_id,
             like,
+            company_id,
             _clamp_limit(limit),
         )
         return [row_to_contact(row) for row in rows]
@@ -721,6 +743,8 @@ class Store:
         q: str,
         limit: int,
         status_suggestion: str = "",
+        channel: str = "",
+        channels: list[str] | None = None,
     ) -> list[OutreachEvent]:
         like = _like_query(q)
         limit_val = _clamp_limit(limit)
@@ -757,6 +781,17 @@ class Store:
         else:
             suggestion_sql = "true"
 
+        if channels:
+            channel_sql = f"channel = any(${idx}::text[])"
+            params.append(channels)
+            idx += 1
+        elif channel:
+            channel_sql = f"channel = ${idx}"
+            params.append(channel)
+            idx += 1
+        else:
+            channel_sql = "true"
+
         query = f"""
             select id, user_id, conversation_id, contact_id, company_id, job_id, type, channel, source,
                    {status_expr} as status,
@@ -769,6 +804,7 @@ class Store:
               and {type_sql}
               and {search_sql}
               and {suggestion_sql}
+              and {channel_sql}
             order by occurred_at desc
             limit ${idx}
         """
@@ -821,12 +857,15 @@ class Store:
             user_id,
             mapper=row_to_outreach,
         )
-        if event.type in FIRST_MAIL_TYPES:
+        if event.type in FIRST_MAIL_TYPES and not (
+            event.type == "application" and event.channel in ("careers_page", "linkedin")
+        ):
             follow_up_sent = await self._follow_up_was_sent(user_id, event)
             event.status = resolve_first_touch_status(
                 event.status,
                 event.occurred_at,
                 follow_up_sent=follow_up_sent,
+                channel=event.channel,
             )
         return event
 
@@ -892,19 +931,24 @@ class Store:
             raise NotFoundError()
 
     async def list_reminders(
-        self, user_id: UUID, open_only: bool, limit: int
+        self, user_id: UUID, open_only: bool, kind: str, q: str, limit: int
     ) -> list[Reminder]:
+        like = _like_query(q)
         rows = await self.pool.fetch(
             """
             select id, user_id, outreach_event_id, conversation_id, kind, due_at, notes, completed_at, created_at, updated_at
             from reminders
             where user_id = $1
               and ($2 = false or completed_at is null)
+              and ($3 = '' or kind = $3)
+              and ($4 = '' or notes ilike $4)
             order by due_at asc
-            limit $3
+            limit $5
             """,
             user_id,
             open_only,
+            kind,
+            like,
             _clamp_limit(limit),
         )
         return [row_to_reminder(row) for row in rows]
@@ -1422,6 +1466,112 @@ class Store:
         )
         return row["id"] if row else None
 
+    async def upsert_job_for_application(
+        self,
+        user_id: UUID,
+        company_id: UUID | None,
+        title: str,
+        url: str,
+        location: str,
+        ats_provider: str,
+    ) -> UUID | None:
+        title = title.strip()
+        if not title:
+            return None
+        notes = (
+            f"Imported from {ats_provider} confirmation email"
+            if ats_provider
+            else "Imported from careers page confirmation email"
+        )
+        row = await self.pool.fetchrow(
+            """
+            select id, url, location, notes from jobs
+            where user_id = $1
+              and company_id is not distinct from $2
+              and lower(title) = lower($3)
+            limit 1
+            """,
+            user_id,
+            company_id,
+            title,
+        )
+        if row:
+            await self.pool.execute(
+                """
+                update jobs
+                set url = case when coalesce(url, '') = '' and $2 <> '' then $2 else url end,
+                    location = case when location = '' and $3 <> '' then $3 else location end,
+                    notes = case when notes = '' then $4 else notes end
+                where id = $1
+                """,
+                row["id"],
+                url,
+                location,
+                notes,
+            )
+            return row["id"]
+
+        row = await self.pool.fetchrow(
+            """
+            insert into jobs (user_id, company_id, title, url, location, status, notes)
+            values ($1, $2, $3, $4, $5, 'waiting', $6)
+            returning id
+            """,
+            user_id,
+            company_id,
+            title,
+            url or None,
+            location,
+            notes,
+        )
+        return row["id"] if row else None
+
+    async def import_careers_application(
+        self,
+        user_id: UUID,
+        *,
+        external_id: str,
+        subject: str,
+        body: str,
+        gmail_thread_id: str | None,
+        occurred_at: datetime,
+        company_name: str,
+        company_domain: str,
+        job_title: str,
+        job_url: str,
+        location: str,
+        ats_provider: str,
+        channel: str = "careers_page",
+    ) -> bool:
+        company_id = await self._upsert_company_for_gmail(
+            user_id, company_name, company_domain
+        )
+        job_id = await self.upsert_job_for_application(
+            user_id,
+            company_id,
+            job_title,
+            job_url,
+            location,
+            ats_provider,
+        )
+        inserted = await self.upsert_gmail_outreach(
+            OutreachEvent(
+                user_id=user_id,
+                company_id=company_id,
+                job_id=job_id,
+                type="application",
+                channel=channel,
+                source="gmail",
+                status="waiting",
+                subject=subject.strip(),
+                body=body,
+                external_id=external_id,
+                gmail_thread_id=gmail_thread_id or None,
+                occurred_at=occurred_at,
+            )
+        )
+        return inserted
+
     async def upsert_gmail_outreach(self, event: OutreachEvent) -> bool:
         row = await self.pool.fetchrow(
             """
@@ -1433,6 +1583,7 @@ class Store:
               where external_id is not null and external_id <> ''
             do update set
               type = excluded.type,
+              channel = excluded.channel,
               status = excluded.status,
               subject = excluded.subject,
               body = excluded.body,
@@ -1440,6 +1591,7 @@ class Store:
               conversation_id = excluded.conversation_id,
               contact_id = excluded.contact_id,
               company_id = excluded.company_id,
+              job_id = coalesce(excluded.job_id, outreach_events.job_id),
               occurred_at = excluded.occurred_at
             returning (xmax = 0) as inserted
             """,

@@ -14,13 +14,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { ChannelSelect, Field, RelatedSelect, SourceSelect, StatusSelect, TypeSelect } from "@/components/fields"
 import { PageHeader } from "@/components/page-header"
+import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter } from "@/components/list-filters"
 import { StatusBadge } from "@/components/status-badge"
 import { useAuth } from "@/hooks/use-auth"
-import { TYPE_LABEL } from "@/lib/labels"
+import { CHANNEL_LABEL, TYPE_LABEL } from "@/lib/labels"
 import {
+  filtersFromParams,
   outreachFilterLabel,
   outreachListQuery,
-  type OutreachListFilters,
 } from "@/lib/outreach-filters"
 import { outreachEmailUrl } from "@/lib/gmail"
 import {
@@ -47,19 +48,6 @@ const empty = {
   jobId: "",
 }
 
-function filtersFromParams(params: URLSearchParams): OutreachListFilters {
-  const types = params.get("types")
-  const type = params.get("type") || undefined
-  const status = params.get("status") || undefined
-  const statusSuggestion = params.get("statusSuggestion") || undefined
-  return {
-    types: types ? types.split(",").filter(Boolean) : undefined,
-    type,
-    status,
-    statusSuggestion,
-  }
-}
-
 export function OutreachPage() {
   const { request } = useAuth()
   const [params, setSearchParams] = useSearchParams()
@@ -69,12 +57,20 @@ export function OutreachPage() {
   const [jobs, setJobs] = useState<Job[]>([])
   const filters = useMemo(() => filtersFromParams(params), [params])
   const [status, setStatus] = useState(params.get("status") || "all")
+  const [type, setType] = useState(params.get("type") || "all")
+  const [channel, setChannel] = useState(params.get("channel") || "all")
+  const [searchDraft, setSearchDraft] = useState(params.get("q") || "")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<OutreachEvent | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
   const hasListFilter = Boolean(
-    filters.types?.length || filters.type || filters.status || filters.statusSuggestion,
+    filters.types?.length ||
+      filters.type ||
+      filters.status ||
+      filters.statusSuggestion ||
+      filters.channel ||
+      filters.q,
   )
   const filterLabel = outreachFilterLabel(filters)
 
@@ -94,14 +90,29 @@ export function OutreachPage() {
 
   useEffect(() => {
     setStatus(params.get("status") || "all")
+    setType(params.get("type") || "all")
+    setChannel(params.get("channel") || "all")
+    setSearchDraft(params.get("q") || "")
     load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
   }, [request, params])
 
+  function updateParam(key: string, value: string) {
+    const next = new URLSearchParams(params)
+    if (value === "all" || !value) next.delete(key)
+    else next.set(key, value)
+    if (key === "type" && value !== "all") next.delete("types")
+    setSearchParams(next)
+  }
+
   function updateStatus(nextStatus: string) {
     setStatus(nextStatus)
+    updateParam("status", nextStatus)
+  }
+
+  function applySearch() {
     const next = new URLSearchParams(params)
-    if (nextStatus === "all") next.delete("status")
-    else next.set("status", nextStatus)
+    if (searchDraft.trim()) next.set("q", searchDraft.trim())
+    else next.delete("q")
     setSearchParams(next)
   }
 
@@ -190,19 +201,48 @@ export function OutreachPage() {
           </Link>
         </div>
       ) : null}
-      <div className="mb-4 max-w-xs">
-        <StatusSelect
-          value={status}
-          allowAll
-          onChange={(v) => {
-            updateStatus(v)
-          }}
+      <ListFilters onSubmit={applySearch}>
+        <SearchFilter
+          value={searchDraft}
+          onChange={setSearchDraft}
+          placeholder="Subject or body"
         />
-      </div>
+        <FilterField label="Status" className="w-40">
+          <StatusSelect
+            value={status}
+            allowAll
+            onChange={(v) => {
+              updateStatus(v)
+            }}
+          />
+        </FilterField>
+        <FilterField label="Type" className="w-44">
+          <TypeSelect
+            value={type}
+            allowAll
+            onChange={(v) => {
+              setType(v)
+              updateParam("type", v)
+            }}
+          />
+        </FilterField>
+        <FilterField label="Channel" className="w-40">
+          <ChannelSelect
+            value={channel}
+            allowAll
+            onChange={(v) => {
+              setChannel(v)
+              updateParam("channel", v)
+            }}
+          />
+        </FilterField>
+        <ApplyFiltersButton />
+      </ListFilters>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Subject</TableHead>
+            <TableHead>Channel</TableHead>
             <TableHead>Type</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>When</TableHead>
@@ -212,7 +252,7 @@ export function OutreachPage() {
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted-foreground">
+              <TableCell colSpan={6} className="text-muted-foreground">
                 No outreach events match this filter.
               </TableCell>
             </TableRow>
@@ -222,6 +262,9 @@ export function OutreachPage() {
                 <TableRow>
                   <TableCell className="font-medium">
                     <OutreachSubject event={e} />
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {CHANNEL_LABEL[e.channel]}
                   </TableCell>
                   <TableCell>{TYPE_LABEL[e.type]}</TableCell>
                   <TableCell>
@@ -239,7 +282,7 @@ export function OutreachPage() {
                 </TableRow>
                 {e.statusSuggestion === "rejected" ? (
                   <TableRow key={`${e.id}-suggestion`} className="bg-amber-500/5 hover:bg-amber-500/5">
-                    <TableCell colSpan={5} className="py-3">
+                    <TableCell colSpan={6} className="py-3">
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-sm text-muted-foreground">
                           This reply may be a rejection. Mark it as rejected?

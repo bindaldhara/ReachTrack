@@ -15,6 +15,8 @@ export type GmailSyncResult = {
   byType?: Record<string, number>
   rejectionsScanned?: number
   rejectionsSuggested?: number
+  applicationsFetched?: number
+  applicationsImported?: number
 }
 
 export type Profile = {
@@ -121,6 +123,7 @@ export type OutreachDashboard = {
   replies: number
   rejections: number
   possibleRejections: number
+  careersPageApplications: number
   waiting: number
   followUpDue: number
 }

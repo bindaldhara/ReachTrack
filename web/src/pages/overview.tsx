@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { StatusSelect } from "@/components/fields"
+import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter, ToggleFilter } from "@/components/list-filters"
 import { StatusBadge } from "@/components/status-badge"
 import { useAuth } from "@/hooks/use-auth"
-import { FIRST_MAIL_TYPES, outreachPagePath } from "@/lib/outreach-filters"
+import { OUTBOUND_FIRST_MAIL_TYPES, outreachPagePath } from "@/lib/outreach-filters"
+import { listQuery } from "@/lib/list-query"
+import { REMINDER_KIND_LABEL } from "@/lib/labels"
 import type { OutreachEvent, Reminder, Stats } from "@/lib/types"
 import { formatDate } from "@/lib/types"
 
@@ -11,8 +15,8 @@ const DASHBOARD_METRICS = [
   {
     key: "firstMailSent" as const,
     label: "First-time mail sent",
-    hint: "Cold emails, referrals, applications",
-    to: outreachPagePath({ types: FIRST_MAIL_TYPES }),
+    hint: "Cold emails you sent",
+    to: outreachPagePath({ types: OUTBOUND_FIRST_MAIL_TYPES }),
   },
   {
     key: "followUpsTaken" as const,
@@ -36,13 +40,13 @@ const DASHBOARD_METRICS = [
     key: "rejections" as const,
     label: "Rejections",
     hint: "Confirmed after you mark a suggestion as rejected",
-    to: outreachPagePath({ types: FIRST_MAIL_TYPES, status: "rejected" }),
+    to: outreachPagePath({ types: OUTBOUND_FIRST_MAIL_TYPES, status: "rejected" }),
   },
   {
     key: "followUpDue" as const,
     label: "Follow-up due",
     hint: "No reply after 1+ days — time to nudge",
-    to: outreachPagePath({ types: FIRST_MAIL_TYPES, status: "follow_up_due" }),
+    to: outreachPagePath({ types: OUTBOUND_FIRST_MAIL_TYPES, status: "follow_up_due" }),
   },
 ]
 
@@ -51,7 +55,26 @@ export function OverviewPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [recent, setRecent] = useState<OutreachEvent[]>([])
   const [reminders, setReminders] = useState<Reminder[]>([])
+  const [outreachStatus, setOutreachStatus] = useState("all")
+  const [outreachQ, setOutreachQ] = useState("")
+  const [remindersOpen, setRemindersOpen] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  async function loadRecent(status = outreachStatus, search = outreachQ) {
+    const qs = listQuery({
+      limit: "8",
+      status: status !== "all" ? status : undefined,
+      q: search.trim() || undefined,
+    })
+    const rows = await request<OutreachEvent[]>(`/api/v1/outreach-events${qs}`)
+    setRecent(rows)
+  }
+
+  async function loadReminders(open = remindersOpen) {
+    const qs = listQuery({ limit: "8", open: open ? "true" : "false" })
+    const rows = await request<Reminder[]>(`/api/v1/reminders${qs}`)
+    setReminders(rows)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -123,7 +146,31 @@ export function OverviewPage() {
           <CardHeader>
             <CardTitle>Recent outreach</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
+            <ListFilters
+              className="mb-0"
+              onSubmit={() => {
+                loadRecent().catch(() => {})
+              }}
+            >
+              <SearchFilter
+                value={outreachQ}
+                onChange={setOutreachQ}
+                placeholder="Subject or body"
+                className="min-w-0 flex-1"
+              />
+              <FilterField label="Status" className="w-36">
+                <StatusSelect
+                  value={outreachStatus}
+                  allowAll
+                  onChange={(v) => {
+                    setOutreachStatus(v)
+                    loadRecent(v, outreachQ).catch(() => {})
+                  }}
+                />
+              </FilterField>
+              <ApplyFiltersButton />
+            </ListFilters>
             {recent.length === 0 ? (
               <p className="text-sm text-muted-foreground">No outreach yet. Log your first event.</p>
             ) : (
@@ -143,14 +190,29 @@ export function OverviewPage() {
           <CardHeader>
             <CardTitle>Upcoming reminders</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-4">
+            <ListFilters className="mb-0">
+              <ToggleFilter
+                label="Show"
+                value={remindersOpen ? "open" : "all"}
+                options={[
+                  { value: "open", label: "Open" },
+                  { value: "all", label: "All" },
+                ]}
+                onChange={(v) => {
+                  const nextOpen = v === "open"
+                  setRemindersOpen(nextOpen)
+                  loadReminders(nextOpen).catch(() => {})
+                }}
+              />
+            </ListFilters>
             {reminders.length === 0 ? (
               <p className="text-sm text-muted-foreground">No open reminders.</p>
             ) : (
               reminders.map((r) => (
                 <div key={r.id} className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-medium">{r.notes || r.kind.replace("_", " ")}</p>
+                    <p className="text-sm font-medium">{r.notes || REMINDER_KIND_LABEL[r.kind]}</p>
                     <p className="text-xs text-muted-foreground">Due {formatDate(r.dueAt)}</p>
                   </div>
                 </div>

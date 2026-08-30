@@ -43,7 +43,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Open http://localhost:5173, sign up, and use **Companies → Contacts → Jobs → Outreach → Reminders**.
+Open http://localhost:5173, sign up, and use **Outreach**, **Successfully applied**, **Jobs**, and **Reminders**.
+
+- **Successfully applied** — application confirmations from career sites and LinkedIn (imported from inbox Gmail).
 
 This machine’s Node 21 works with the pinned Vite 6. Vite 8 needs Node 20.19+ or 22.12+.
 
@@ -71,6 +73,8 @@ Restart the API after changing env vars. Tokens are stored in `gmail_connections
 ## 5. Gemini (optional — rejection detection)
 
 After Gmail sync, ReachTrack scans thread replies for **possible rejections**. If you add a [Google AI Studio](https://aistudio.google.com/apikey) API key, classification uses Gemini; otherwise it falls back to OpenAI (if configured) or keyword rules.
+
+The same Gmail import also reads **inbox** application confirmations from ATS/careers platforms (Greenhouse, Lever, Workday, Ashby, etc.) and from **LinkedIn Easy Apply** (`jobs-noreply@linkedin.com`). Matching emails create **Jobs** rows and appear under **Successfully applied**.
 
 Add to `api/.env`:
 

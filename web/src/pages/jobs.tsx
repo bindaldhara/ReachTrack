@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,25 +13,36 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { Field, RelatedSelect, StatusSelect } from "@/components/fields"
+import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { StatusBadge } from "@/components/status-badge"
 import { useAuth } from "@/hooks/use-auth"
+import { listQuery } from "@/lib/list-query"
+import { formatDate } from "@/lib/types"
 import type { Company, Job } from "@/lib/types"
 
 const empty = { title: "", url: "", location: "", status: "sent", notes: "", companyId: "" }
+
+function isImportedJob(job: Job) {
+  return job.notes.toLowerCase().includes("imported from")
+}
 
 export function JobsPage() {
   const { request } = useAuth()
   const [items, setItems] = useState<Job[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [status, setStatus] = useState("all")
+  const [q, setQ] = useState("")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Job | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
 
-  async function load(nextStatus = status) {
-    const qs = nextStatus !== "all" ? `?status=${nextStatus}` : ""
+  async function load(nextStatus = status, search = q) {
+    const qs = listQuery({
+      status: nextStatus !== "all" ? nextStatus : undefined,
+      q: search.trim() || undefined,
+    })
     const [jobs, cos] = await Promise.all([
       request<Job[]>(`/api/v1/jobs${qs}`),
       request<Company[]>("/api/v1/companies"),
@@ -93,42 +105,79 @@ export function JobsPage() {
     <div>
       <PageHeader
         title="Jobs"
-        description="Roles you are applying to, with the same pipeline statuses."
+        description="Roles you applied to. Careers-page confirmations from Gmail are added automatically on import."
         action={<Button onClick={startCreate}>Add job</Button>}
       />
-      <div className="mb-4 max-w-xs">
-        <StatusSelect
-          value={status}
-          allowAll
-          onChange={(v) => {
-            setStatus(v)
-            load(v).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
-          }}
-        />
-      </div>
+      <ListFilters
+        onSubmit={() => {
+          load(status, q).catch((err: unknown) =>
+            toast.error(err instanceof Error ? err.message : "Filter failed"),
+          )
+        }}
+      >
+        <SearchFilter value={q} onChange={setQ} placeholder="Title or location" />
+        <FilterField label="Status" className="w-40">
+          <StatusSelect
+            value={status}
+            allowAll
+            onChange={(v) => {
+              setStatus(v)
+              load(v, q).catch((err: unknown) =>
+                toast.error(err instanceof Error ? err.message : "Filter failed"),
+              )
+            }}
+          />
+        </FilterField>
+        <ApplyFiltersButton />
+      </ListFilters>
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead>Title</TableHead>
             <TableHead>Company</TableHead>
+            <TableHead>Location</TableHead>
             <TableHead>Status</TableHead>
+            <TableHead>Applied</TableHead>
             <TableHead className="w-40" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
-                No jobs yet.
+              <TableCell colSpan={6} className="text-muted-foreground">
+                No jobs yet. Import Gmail for a date to pull in careers-page applications.
               </TableCell>
             </TableRow>
           ) : (
             items.map((j) => (
               <TableRow key={j.id}>
-                <TableCell className="font-medium">{j.title}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="space-y-1">
+                    {j.url ? (
+                      <a
+                        href={j.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 hover:underline"
+                      >
+                        {j.title}
+                        <ExternalLink className="size-3.5 shrink-0 opacity-70" />
+                      </a>
+                    ) : (
+                      j.title
+                    )}
+                    {isImportedJob(j) ? (
+                      <p className="text-xs text-muted-foreground">From Gmail careers confirmation</p>
+                    ) : null}
+                  </div>
+                </TableCell>
                 <TableCell>{companyName(j.companyId)}</TableCell>
+                <TableCell className="text-muted-foreground">{j.location || "—"}</TableCell>
                 <TableCell>
                   <StatusBadge status={j.status} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {formatDate(j.createdAt)}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" onClick={() => startEdit(j)}>

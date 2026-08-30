@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
 import { Field } from "@/components/fields"
+import { ApplyFiltersButton, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { useAuth } from "@/hooks/use-auth"
+import { listQuery } from "@/lib/list-query"
 import type { Company } from "@/lib/types"
 
 const empty = { name: "", domain: "", website: "", linkedinUrl: "", notes: "" }
@@ -28,7 +30,8 @@ export function CompaniesPage() {
   const [busy, setBusy] = useState(false)
 
   async function load(search = q) {
-    const data = await request<Company[]>(`/api/v1/companies?q=${encodeURIComponent(search)}`)
+    const qs = listQuery({ q: search.trim() || undefined })
+    const data = await request<Company[]>(`/api/v1/companies${qs}`)
     setItems(data)
   }
 
@@ -89,18 +92,14 @@ export function CompaniesPage() {
         description="Employers and teams you are reaching out to."
         action={<Button onClick={startCreate}>Add company</Button>}
       />
-      <form
-        className="mb-4 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault()
+      <ListFilters
+        onSubmit={() => {
           load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
-        <Input placeholder="Search name or domain" value={q} onChange={(e) => setQ(e.target.value)} />
-        <Button type="submit" variant="outline">
-          Search
-        </Button>
-      </form>
+        <SearchFilter value={q} onChange={setQ} placeholder="Name or domain" />
+        <ApplyFiltersButton />
+      </ListFilters>
       <Table>
         <TableHeader>
           <TableRow>
