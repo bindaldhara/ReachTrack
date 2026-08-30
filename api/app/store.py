@@ -33,6 +33,9 @@ from app.schemas import (
     Profile,
     Reminder,
     Stats,
+    TodoCompany,
+    TodoEmail,
+    TodoSummary,
 )
 
 
@@ -182,6 +185,34 @@ def row_to_reminder(row: asyncpg.Record) -> Reminder:
             "dueAt": row["due_at"],
             "notes": row["notes"],
             "completedAt": row["completed_at"],
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
+        }
+    )
+
+
+def row_to_todo_email(row: asyncpg.Record) -> TodoEmail:
+    return TodoEmail.model_validate(
+        {
+            "id": row["id"],
+            "userId": row["user_id"],
+            "subject": row["subject"],
+            "recipient": row["recipient"],
+            "notes": row["notes"],
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
+        }
+    )
+
+
+def row_to_todo_company(row: asyncpg.Record) -> TodoCompany:
+    return TodoCompany.model_validate(
+        {
+            "id": row["id"],
+            "userId": row["user_id"],
+            "companyId": row["company_id"],
+            "name": row["name"],
+            "notes": row["notes"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
         }
@@ -1007,6 +1038,160 @@ class Store:
         )
         if result.split()[-1] == "0":
             raise NotFoundError()
+
+    async def list_todo_emails(
+        self, user_id: UUID, q: str, limit: int
+    ) -> list[TodoEmail]:
+        like = _like_query(q)
+        rows = await self.pool.fetch(
+            """
+            select id, user_id, subject, recipient, notes, created_at, updated_at
+            from todo_emails
+            where user_id = $1
+              and ($2 = '' or subject ilike $2 or recipient ilike $2 or notes ilike $2)
+            order by created_at desc
+            limit $3
+            """,
+            user_id,
+            like,
+            _clamp_limit(limit),
+        )
+        return [row_to_todo_email(row) for row in rows]
+
+    async def get_todo_email(self, user_id: UUID, item_id: UUID) -> TodoEmail:
+        return await self._query_one(
+            """
+            select id, user_id, subject, recipient, notes, created_at, updated_at
+            from todo_emails where id = $1 and user_id = $2
+            """,
+            item_id,
+            user_id,
+            mapper=row_to_todo_email,
+        )
+
+    async def create_todo_email(self, item: TodoEmail) -> TodoEmail:
+        return await self._query_one(
+            """
+            insert into todo_emails (user_id, subject, recipient, notes)
+            values ($1, $2, $3, $4)
+            returning id, user_id, subject, recipient, notes, created_at, updated_at
+            """,
+            item.user_id,
+            item.subject,
+            item.recipient,
+            item.notes,
+            mapper=row_to_todo_email,
+        )
+
+    async def update_todo_email(self, item: TodoEmail) -> TodoEmail:
+        return await self._query_one(
+            """
+            update todo_emails
+            set subject = $3, recipient = $4, notes = $5
+            where id = $1 and user_id = $2
+            returning id, user_id, subject, recipient, notes, created_at, updated_at
+            """,
+            item.id,
+            item.user_id,
+            item.subject,
+            item.recipient,
+            item.notes,
+            mapper=row_to_todo_email,
+        )
+
+    async def delete_todo_email(self, user_id: UUID, item_id: UUID) -> None:
+        result = await self.pool.execute(
+            "delete from todo_emails where id = $1 and user_id = $2",
+            item_id,
+            user_id,
+        )
+        if result.split()[-1] == "0":
+            raise NotFoundError()
+
+    async def list_todo_companies(
+        self, user_id: UUID, q: str, limit: int
+    ) -> list[TodoCompany]:
+        like = _like_query(q)
+        rows = await self.pool.fetch(
+            """
+            select id, user_id, company_id, name, notes, created_at, updated_at
+            from todo_companies
+            where user_id = $1
+              and ($2 = '' or name ilike $2 or notes ilike $2)
+            order by created_at desc
+            limit $3
+            """,
+            user_id,
+            like,
+            _clamp_limit(limit),
+        )
+        return [row_to_todo_company(row) for row in rows]
+
+    async def get_todo_company(self, user_id: UUID, item_id: UUID) -> TodoCompany:
+        return await self._query_one(
+            """
+            select id, user_id, company_id, name, notes, created_at, updated_at
+            from todo_companies where id = $1 and user_id = $2
+            """,
+            item_id,
+            user_id,
+            mapper=row_to_todo_company,
+        )
+
+    async def create_todo_company(self, item: TodoCompany) -> TodoCompany:
+        return await self._query_one(
+            """
+            insert into todo_companies (user_id, company_id, name, notes)
+            values ($1, $2, $3, $4)
+            returning id, user_id, company_id, name, notes, created_at, updated_at
+            """,
+            item.user_id,
+            item.company_id,
+            item.name,
+            item.notes,
+            mapper=row_to_todo_company,
+        )
+
+    async def update_todo_company(self, item: TodoCompany) -> TodoCompany:
+        return await self._query_one(
+            """
+            update todo_companies
+            set company_id = $3, name = $4, notes = $5
+            where id = $1 and user_id = $2
+            returning id, user_id, company_id, name, notes, created_at, updated_at
+            """,
+            item.id,
+            item.user_id,
+            item.company_id,
+            item.name,
+            item.notes,
+            mapper=row_to_todo_company,
+        )
+
+    async def delete_todo_company(self, user_id: UUID, item_id: UUID) -> None:
+        result = await self.pool.execute(
+            "delete from todo_companies where id = $1 and user_id = $2",
+            item_id,
+            user_id,
+        )
+        if result.split()[-1] == "0":
+            raise NotFoundError()
+
+    async def get_todo_summary(self, user_id: UUID) -> TodoSummary:
+        row = await self.pool.fetchrow(
+            """
+            select
+              (select count(*)::int from todo_emails where user_id = $1) as email_count,
+              (select count(*)::int from todo_companies where user_id = $1) as company_count
+            """,
+            user_id,
+        )
+        if row is None:
+            return TodoSummary(emailCount=0, companyCount=0)
+        return TodoSummary(
+            emailCount=row["email_count"] or 0,
+            companyCount=row["company_count"] or 0,
+        )
 
     async def get_active_gmail_connection(self, user_id: UUID) -> GmailConnection:
         return await self._query_one(

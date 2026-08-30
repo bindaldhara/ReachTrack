@@ -11,6 +11,8 @@ import { OverviewPage } from "@/pages/overview"
 import { ProfilePage } from "@/pages/profile"
 import { SuccessfullyAppliedPage } from "@/pages/successfully-applied"
 import { RemindersPage } from "@/pages/reminders"
+import { TodoCompaniesPage } from "@/pages/todo-companies"
+import { TodoEmailsPage } from "@/pages/todo-emails"
 
 export default function App() {
   return (
@@ -30,6 +32,8 @@ export default function App() {
               <Route path="/companies" element={<CompaniesPage />} />
               <Route path="/jobs" element={<JobsPage />} />
               <Route path="/reminders" element={<RemindersPage />} />
+              <Route path="/todo/emails" element={<TodoEmailsPage />} />
+              <Route path="/todo/companies" element={<TodoCompaniesPage />} />
               <Route path="/profile" element={<ProfilePage />} />
             </Route>
           </Route>

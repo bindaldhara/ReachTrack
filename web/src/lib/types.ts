@@ -117,6 +117,31 @@ export type Reminder = {
   updatedAt: string
 }
 
+export type TodoEmail = {
+  id: string
+  userId: string
+  subject: string
+  recipient: string
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type TodoCompany = {
+  id: string
+  userId: string
+  companyId: string | null
+  name: string
+  notes: string
+  createdAt: string
+  updatedAt: string
+}
+
+export type TodoSummary = {
+  emailCount: number
+  companyCount: number
+}
+
 export type OutreachDashboard = {
   firstMailSent: number
   followUpsTaken: number

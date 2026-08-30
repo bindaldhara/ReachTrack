@@ -9,6 +9,10 @@ In [Supabase](https://supabase.com/dashboard):
    - `supabase/migrations/20260829120000_init.sql`
    - `supabase/migrations/20260829130000_gmail_connections.sql`
    - `supabase/migrations/20260829140000_outreach_types_gmail.sql`
+   - `supabase/migrations/20260829150000_outreach_gmail_thread.sql`
+   - `supabase/migrations/20260829160000_gmail_crm_links.sql`
+   - `supabase/migrations/20260829170000_outreach_status_suggestion.sql`
+   - `supabase/migrations/20260830120000_todo_items.sql`
 3. Copy the project URL (`https://<ref>.supabase.co`) into both `VITE_SUPABASE_URL` (web) and `SUPABASE_URL` (api).
 4. From **Settings → API Keys**, copy the publishable key (`sb_publishable_…`) into `VITE_SUPABASE_ANON_KEY`. The legacy `anon` key also works, but Supabase retires legacy keys at the end of 2026. Never put a secret or `service_role` key in `web/.env` — it ships to the browser.
 5. Click **Connect** at the top of the dashboard, copy the **Session pooler** connection string into `DATABASE_URL`, and replace `[YOUR-PASSWORD]` with your database password (resettable under **Settings → Database**). Prefer the session pooler on port **5432** (not the transaction pooler on 6543).
@@ -43,9 +47,11 @@ cp .env.example .env
 npm run dev
 ```
 
-Open http://localhost:5173, sign up, and use **Outreach**, **Successfully applied**, **Jobs**, and **Reminders**.
+Open http://localhost:5173, sign up, and use **Outreach**, **Successfully applied**, **Jobs**, **Reminders**, and **Todo**.
 
 - **Successfully applied** — application confirmations from career sites and LinkedIn (imported from inbox Gmail).
+- **Todo → Emails to send** — draft emails; **Done** removes the item.
+- **Todo → Companies to reach out** — target companies for outreach; **Done** removes the item.
 
 This machine’s Node 21 works with the pinned Vite 6. Vite 8 needs Node 20.19+ or 22.12+.
 

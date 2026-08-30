@@ -54,6 +54,26 @@ Gmail import also scans **inbox** for application confirmations from ATS/careers
 
 `kind`: `follow_up`, `reply_needed`, `interview`. Optional links to an outreach event and/or conversation. `completed_at` null means open.
 
+## todo_emails
+
+Emails you plan to send. Removed from the list when marked done (`POST /api/v1/todo/emails/{id}/complete`).
+
+| Column    | Notes                    |
+|-----------|--------------------------|
+| subject   | Email subject line       |
+| recipient | To address (optional)    |
+| notes     | Draft body or reminders  |
+
+## todo_companies
+
+Companies you plan to reach out to. Separate from the main **Companies** CRM list. Removed when marked done.
+
+| Column     | Notes                              |
+|------------|------------------------------------|
+| name       | Company to target                  |
+| company_id | Optional link to a `companies` row |
+| notes      | Why / how to reach out             |
+
 ## gmail_connections
 
 Added by `supabase/migrations/20260829130000_gmail_connections.sql`. One active row per user (`revoked_at` null).

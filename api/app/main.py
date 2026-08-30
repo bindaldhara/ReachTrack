@@ -55,6 +55,9 @@ from app.schemas import (
     OutreachRequest,
     ProfileUpdateRequest,
     ReminderRequest,
+    TodoCompanyRequest,
+    TodoEmailRequest,
+    TodoSummary,
 )
 from app.store import Store
 from app.validators import (
@@ -64,6 +67,8 @@ from app.validators import (
     job_from_request,
     outreach_from_request,
     reminder_from_request,
+    todo_company_from_request,
+    todo_email_from_request,
 )
 
 logger = logging.getLogger(__name__)
@@ -845,6 +850,139 @@ def create_app() -> FastAPI:
     ) -> Response:
         await _store_call(
             store.delete_reminder(user.user_id, parse_path_id(reminder_id))
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.get("/todo/summary")
+    async def get_todo_summary(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+    ) -> TodoSummary:
+        return await _store_call(store.get_todo_summary(user.user_id))
+
+    @router.get("/todo/emails")
+    async def list_todo_emails(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        q: str = "",
+        limit: int | None = Query(None),
+    ):
+        return await _store_call(
+            store.list_todo_emails(user.user_id, q, query_limit(limit))
+        )
+
+    @router.post("/todo/emails", status_code=status.HTTP_201_CREATED)
+    async def create_todo_email(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        body: TodoEmailRequest,
+    ):
+        try:
+            item = todo_email_from_request(user.user_id, body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        return await _store_call(store.create_todo_email(item))
+
+    @router.put("/todo/emails/{item_id}")
+    async def update_todo_email(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+        body: TodoEmailRequest,
+    ):
+        try:
+            item = todo_email_from_request(user.user_id, body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        item.id = parse_path_id(item_id)
+        return await _store_call(store.update_todo_email(item))
+
+    @router.post("/todo/emails/{item_id}/complete", status_code=status.HTTP_204_NO_CONTENT)
+    async def complete_todo_email(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+    ) -> Response:
+        await _store_call(
+            store.delete_todo_email(user.user_id, parse_path_id(item_id))
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.delete("/todo/emails/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_todo_email(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+    ) -> Response:
+        await _store_call(
+            store.delete_todo_email(user.user_id, parse_path_id(item_id))
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.get("/todo/companies")
+    async def list_todo_companies(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        q: str = "",
+        limit: int | None = Query(None),
+    ):
+        return await _store_call(
+            store.list_todo_companies(user.user_id, q, query_limit(limit))
+        )
+
+    @router.post("/todo/companies", status_code=status.HTTP_201_CREATED)
+    async def create_todo_company(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        body: TodoCompanyRequest,
+    ):
+        try:
+            item = todo_company_from_request(user.user_id, body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        return await _store_call(store.create_todo_company(item))
+
+    @router.put("/todo/companies/{item_id}")
+    async def update_todo_company(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+        body: TodoCompanyRequest,
+    ):
+        try:
+            item = todo_company_from_request(user.user_id, body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        item.id = parse_path_id(item_id)
+        return await _store_call(store.update_todo_company(item))
+
+    @router.post("/todo/companies/{item_id}/complete", status_code=status.HTTP_204_NO_CONTENT)
+    async def complete_todo_company(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+    ) -> Response:
+        await _store_call(
+            store.delete_todo_company(user.user_id, parse_path_id(item_id))
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @router.delete("/todo/companies/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_todo_company(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+    ) -> Response:
+        await _store_call(
+            store.delete_todo_company(user.user_id, parse_path_id(item_id))
         )
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 

@@ -113,6 +113,26 @@ class Reminder(CamelModel):
     updated_at: datetime = Field(alias="updatedAt")
 
 
+class TodoEmail(CamelModel):
+    id: UUID
+    user_id: UUID = Field(alias="userId")
+    subject: str
+    recipient: str
+    notes: str
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
+class TodoCompany(CamelModel):
+    id: UUID
+    user_id: UUID = Field(alias="userId")
+    company_id: UUID | None = Field(default=None, alias="companyId")
+    name: str
+    notes: str
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
 class GmailConnection(CamelModel):
     id: UUID
     user_id: UUID = Field(alias="userId")
@@ -240,6 +260,23 @@ class ReminderRequest(CamelModel):
     due_at: str = Field(default="", alias="dueAt")
     notes: str = ""
     completed: bool | None = None
+
+
+class TodoEmailRequest(CamelModel):
+    subject: str = ""
+    recipient: str = ""
+    notes: str = ""
+
+
+class TodoCompanyRequest(CamelModel):
+    company_id: str = Field(default="", alias="companyId")
+    name: str = ""
+    notes: str = ""
+
+
+class TodoSummary(CamelModel):
+    email_count: int = Field(alias="emailCount")
+    company_count: int = Field(alias="companyCount")
 
 
 class GmailSyncRequest(CamelModel):

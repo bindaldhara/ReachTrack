@@ -24,6 +24,10 @@ from app.schemas import (
     OutreachRequest,
     Reminder,
     ReminderRequest,
+    TodoCompany,
+    TodoCompanyRequest,
+    TodoEmail,
+    TodoEmailRequest,
 )
 
 
@@ -193,6 +197,41 @@ def reminder_from_request(user_id: UUID, req: ReminderRequest) -> Reminder:
         due_at=due_at,
         notes=req.notes.strip(),
         completed_at=completed_at,
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+def todo_email_from_request(user_id: UUID, req: TodoEmailRequest) -> TodoEmail:
+    subject = req.subject.strip()
+    recipient = req.recipient.strip()
+    if not subject and not recipient:
+        raise ValueError("subject or recipient is required")
+    return TodoEmail(
+        id=uuid4(),
+        user_id=user_id,
+        subject=subject,
+        recipient=recipient,
+        notes=req.notes.strip(),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+def todo_company_from_request(user_id: UUID, req: TodoCompanyRequest) -> TodoCompany:
+    name = req.name.strip()
+    if not name:
+        raise ValueError("name is required")
+    try:
+        company_id = parse_optional_uuid(req.company_id)
+    except ValueError as exc:
+        raise ValueError("invalid companyId") from exc
+    return TodoCompany(
+        id=uuid4(),
+        user_id=user_id,
+        company_id=company_id,
+        name=name,
+        notes=req.notes.strip(),
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),
     )

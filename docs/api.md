@@ -54,6 +54,23 @@ Collections:
 | `/outreach-events` | `q`, `status`, `statusSuggestion`, `channel`, `channels` (comma-separated), `type`, `types` (comma-separated) |
 | `/reminders`       | `open=true\|false` (default true), `kind`, `q` |
 
+## Todo
+
+Personal task lists under the sidebar **Todo** section. Marking an item **done** deletes it.
+
+- `GET /api/v1/todo/summary` → `{ "emailCount", "companyCount" }` (sidebar badges)
+
+| Path | List filters | Done |
+|------|--------------|------|
+| `/todo/emails` | `q` | `POST /api/v1/todo/emails/{id}/complete` → 204 |
+| `/todo/companies` | `q` | `POST /api/v1/todo/companies/{id}/complete` → 204 |
+
+Each also supports `GET` list, `POST` create, `PUT` update, and `DELETE`.
+
+Todo email body: `{ "subject", "recipient", "notes" }` (at least one of `subject` or `recipient`).
+
+Todo company body: `{ "name", "companyId", "notes" }` (`name` required).
+
 Create/update bodies match the dashboard forms. Empty strings for optional UUIDs and URLs are stored as null.
 
 Outreach `occurredAt` and reminder `dueAt` are RFC3339. Reminder `completed: true` sets `completedAt` to now; `false` clears it.
