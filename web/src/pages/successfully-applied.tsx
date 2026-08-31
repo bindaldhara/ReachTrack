@@ -2,8 +2,23 @@ import { Fragment, useEffect, useState } from "react"
 import { Link } from "react-router-dom"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { StatusSelect } from "@/components/fields"
+import { Field, RelatedSelect, StatusSelect } from "@/components/fields"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter, ToggleFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { StatusBadge } from "@/components/status-badge"
@@ -12,7 +27,16 @@ import { outreachEmailUrl } from "@/lib/gmail"
 import { APPLICATION_CONFIRMATION_CHANNELS } from "@/lib/outreach-filters"
 import { CHANNEL_LABEL } from "@/lib/labels"
 import { listQuery } from "@/lib/list-query"
-import { formatDate, type Company, type Job, type OutreachEvent } from "@/lib/types"
+import { formatDate, fromLocalInput, toLocalInput, type Company, type Job, type OutreachEvent } from "@/lib/types"
+
+const emptyForm = {
+  subject: "",
+  companyId: "",
+  jobId: "",
+  channel: "careers_page",
+  status: "waiting",
+  occurredAt: toLocalInput(new Date().toISOString()),
+}
 
 export function SuccessfullyAppliedPage() {
   const { request } = useAuth()
@@ -22,6 +46,9 @@ export function SuccessfullyAppliedPage() {
   const [status, setStatus] = useState("all")
   const [q, setQ] = useState("")
   const [rejectionsOnly, setRejectionsOnly] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState(emptyForm)
+  const [busy, setBusy] = useState(false)
 
   async function load(nextStatus = status, search = q, onlyRejections = rejectionsOnly) {
     const qs = listQuery({
@@ -67,6 +94,41 @@ export function SuccessfullyAppliedPage() {
     }
   }
 
+  function startCreate() {
+    setForm({ ...emptyForm, occurredAt: toLocalInput(new Date().toISOString()) })
+    setOpen(true)
+  }
+
+  async function save() {
+    if (!form.subject.trim()) {
+      toast.error("Application title is required")
+      return
+    }
+    setBusy(true)
+    try {
+      const payload = {
+        subject: form.subject.trim(),
+        body: "",
+        type: "application",
+        channel: form.channel,
+        source: "manual",
+        status: form.status,
+        occurredAt: fromLocalInput(form.occurredAt),
+        companyId: form.companyId,
+        jobId: form.jobId,
+        contactId: "",
+      }
+      await request("/api/v1/outreach-events", { method: "POST", body: JSON.stringify(payload) })
+      setOpen(false)
+      await load()
+      toast.success("Application added")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const companyName = (id: string | null) => companies.find((c) => c.id === id)?.name ?? "—"
   const jobTitle = (id: string | null) => jobs.find((j) => j.id === id)?.title
 
@@ -74,11 +136,14 @@ export function SuccessfullyAppliedPage() {
     <div>
       <PageHeader
         title="Successfully applied"
-        description="Application confirmations from company career sites and LinkedIn Easy Apply. Imported from Gmail — no follow-up needed."
+        description="Application confirmations from company career sites and LinkedIn Easy Apply. Imported from Gmail or added manually."
         action={
-          <Button variant="outline" asChild>
-            <Link to="/jobs">View jobs</Link>
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={startCreate}>Add application</Button>
+            <Button variant="outline" asChild>
+              <Link to="/jobs">View jobs</Link>
+            </Button>
+          </div>
         }
       />
       <ListFilters
@@ -179,6 +244,70 @@ export function SuccessfullyAppliedPage() {
           )}
         </TableBody>
       </Table>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add application</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Field label="Application title">
+              <Input
+                value={form.subject}
+                onChange={(e) => setForm({ ...form, subject: e.target.value })}
+                placeholder="e.g. Software Engineer at Acme"
+              />
+            </Field>
+            <Field label="Source">
+              <Select value={form.channel} onValueChange={(channel) => setForm({ ...form, channel })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {APPLICATION_CONFIRMATION_CHANNELS.map((channel) => (
+                    <SelectItem key={channel} value={channel}>
+                      {CHANNEL_LABEL[channel]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Status">
+              <StatusSelect value={form.status} onChange={(status) => setForm({ ...form, status })} />
+            </Field>
+            <Field label="Applied on">
+              <Input
+                type="datetime-local"
+                value={form.occurredAt}
+                onChange={(e) => setForm({ ...form, occurredAt: e.target.value })}
+              />
+            </Field>
+            <Field label="Company (optional)">
+              <RelatedSelect
+                value={form.companyId}
+                onChange={(companyId) => setForm({ ...form, companyId })}
+                options={companies.map((c) => ({ id: c.id, label: c.name }))}
+                placeholder="Company"
+              />
+            </Field>
+            <Field label="Job (optional)">
+              <RelatedSelect
+                value={form.jobId}
+                onChange={(jobId) => setForm({ ...form, jobId })}
+                options={jobs.map((j) => ({ id: j.id, label: j.title }))}
+                placeholder="Job"
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={save} disabled={busy}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

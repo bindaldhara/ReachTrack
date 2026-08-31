@@ -49,7 +49,7 @@ npm run dev
 
 Open http://localhost:5173, sign up, and use **Outreach**, **Successfully applied**, **Jobs**, **Reminders**, and **Todo**.
 
-- **Successfully applied** — application confirmations from career sites and LinkedIn (imported from inbox Gmail).
+- **Successfully applied** — application confirmations from career sites and LinkedIn (imported from inbox Gmail, or added manually).
 - **Todo → Emails to send** — draft emails; **Done** removes the item.
 - **Todo → Companies to reach out** — target companies for outreach; **Done** removes the item.
 

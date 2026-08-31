@@ -62,8 +62,8 @@ Personal task lists under the sidebar **Todo** section. Marking an item **done**
 
 | Path | List filters | Done |
 |------|--------------|------|
-| `/todo/emails` | `q` | `POST /api/v1/todo/emails/{id}/complete` → 204 |
-| `/todo/companies` | `q` | `POST /api/v1/todo/companies/{id}/complete` → 204 |
+| `/todo/emails` | `q` | `POST /api/v1/todo/emails/{id}/complete` → 204 (UI supports multi-select bulk complete) |
+| `/todo/companies` | `q` | `POST /api/v1/todo/companies/{id}/complete` → 204 (UI supports multi-select bulk complete) |
 
 Each also supports `GET` list, `POST` create, `PUT` update, and `DELETE`.
 

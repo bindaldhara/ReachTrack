@@ -48,7 +48,7 @@ One captured action.
 
 Gmail import also creates or updates `companies`, `contacts`, and `conversations`, and links them on the outreach row. Possible rejections are detected from thread reply text (OpenRouter if `OPENROUTER_API_KEY` is set, else Gemini, else OpenAI, else keyword rules) and stored as `status_suggestion` until you confirm.
 
-Gmail import also scans **inbox** for application confirmations from ATS/careers platforms (Greenhouse, Lever, Workday, Ashby, and similar senders) and from **LinkedIn** (`jobs-noreply@linkedin.com`). Matching emails appear under **Successfully applied** (`channel` is `careers_page` or `linkedin`). Imported application confirmations are excluded from follow-up-due tracking.
+Gmail import also scans **inbox** for application confirmations from ATS/careers platforms (Greenhouse, Lever, Workday, Ashby, and similar senders) and from **LinkedIn** (`jobs-noreply@linkedin.com`). Matching emails appear under **Successfully applied** (`channel` is `careers_page` or `linkedin`). You can also add applications manually from that page (`source` = `manual`, `type` = `application`). Imported application confirmations are excluded from follow-up-due tracking.
 
 ## reminders
 

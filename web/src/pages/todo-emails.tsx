@@ -15,8 +15,10 @@ import { Field } from "@/components/fields"
 import { ApplyFiltersButton, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { useAuth } from "@/hooks/use-auth"
+import { useTodoSelection } from "@/hooks/use-todo-selection"
 import { listQuery } from "@/lib/list-query"
 import type { TodoEmail } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 const empty = { subject: "", recipient: "", notes: "" }
 
@@ -75,6 +77,23 @@ export function TodoEmailsPage() {
     }
   }
 
+  const itemIds = items.map((item) => item.id)
+  const { selected, toggle, toggleAll, clear, count, allSelected, someSelected } = useTodoSelection(itemIds)
+
+  async function markSelectedDone() {
+    if (count === 0) return
+    const ids = [...selected]
+    try {
+      await Promise.all(ids.map((id) => request(`/api/v1/todo/emails/${id}/complete`, { method: "POST" })))
+      clear()
+      await load()
+      toast.success(`Marked ${ids.length} ${ids.length === 1 ? "email" : "emails"} as done`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not mark selected as done")
+      await load()
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -89,10 +108,34 @@ export function TodoEmailsPage() {
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Subject, recipient, or notes" />
         <ApplyFiltersButton />
+        {count > 0 ? (
+          <>
+            <span className="text-sm text-muted-foreground">{count} selected</span>
+            <Button size="sm" onClick={markSelectedDone}>
+              Mark as done
+            </Button>
+            <Button variant="ghost" size="sm" onClick={clear}>
+              Clear
+            </Button>
+          </>
+        ) : null}
       </ListFilters>
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead className="w-10">
+              <input
+                type="checkbox"
+                role="checkbox"
+                aria-label="Select all emails"
+                checked={allSelected}
+                ref={(el) => {
+                  if (el) el.indeterminate = someSelected
+                }}
+                onChange={toggleAll}
+                className="size-4 rounded border-input accent-primary"
+              />
+            </TableHead>
             <TableHead>Subject</TableHead>
             <TableHead>Recipient</TableHead>
             <TableHead>Notes</TableHead>
@@ -102,13 +145,26 @@ export function TodoEmailsPage() {
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-muted-foreground">
+              <TableCell colSpan={5} className="text-muted-foreground">
                 No emails in your todo list.
               </TableCell>
             </TableRow>
           ) : (
             items.map((item) => (
-              <TableRow key={item.id}>
+              <TableRow
+                key={item.id}
+                className={cn(selected.has(item.id) && "bg-muted/40")}
+              >
+                <TableCell>
+                  <input
+                    type="checkbox"
+                    role="checkbox"
+                    aria-label={`Select ${item.subject || "email"}`}
+                    checked={selected.has(item.id)}
+                    onChange={() => toggle(item.id)}
+                    className="size-4 rounded border-input accent-primary"
+                  />
+                </TableCell>
                 <TableCell className="font-medium">{item.subject || "—"}</TableCell>
                 <TableCell>
                   {item.recipient ? (
