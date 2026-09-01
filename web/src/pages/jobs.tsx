@@ -16,10 +16,12 @@ import { Field, RelatedSelect, StatusSelect } from "@/components/fields"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { StatusBadge } from "@/components/status-badge"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { listQuery } from "@/lib/list-query"
-import { formatDate } from "@/lib/types"
-import type { Company, Job } from "@/lib/types"
+import { fetchSelectPage, paginationParams } from "@/lib/pagination"
+import { formatDate, type Company, type Job, type PaginatedList } from "@/lib/types"
 
 const empty = { title: "", url: "", location: "", status: "sent", notes: "", companyId: "" }
 
@@ -37,23 +39,26 @@ export function JobsPage() {
   const [editing, setEditing] = useState<Job | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(nextStatus = status, search = q) {
     const qs = listQuery({
       status: nextStatus !== "all" ? nextStatus : undefined,
       q: search.trim() || undefined,
+      ...paginationParams(page),
     })
     const [jobs, cos] = await Promise.all([
-      request<Job[]>(`/api/v1/jobs${qs}`),
-      request<Company[]>("/api/v1/companies"),
+      request<PaginatedList<Job>>(`/api/v1/jobs${qs}`),
+      request<PaginatedList<Company>>(fetchSelectPage("/api/v1/companies")),
     ])
-    setItems(jobs)
-    setCompanies(cos)
+    setItems(jobs.items)
+    setTotal(jobs.total)
+    setCompanies(cos.items)
   }
 
   useEffect(() => {
     load("all").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
-  }, [request])
+  }, [request, page])
 
   function startCreate() {
     setEditing(null)
@@ -110,7 +115,8 @@ export function JobsPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load(status, q).catch((err: unknown) =>
+          if (page !== 0) setPage(0)
+          else load(status, q).catch((err: unknown) =>
             toast.error(err instanceof Error ? err.message : "Filter failed"),
           )
         }}
@@ -122,7 +128,8 @@ export function JobsPage() {
             allowAll
             onChange={(v) => {
               setStatus(v)
-              load(v, q).catch((err: unknown) =>
+              if (page !== 0) setPage(0)
+              else load(v, q).catch((err: unknown) =>
                 toast.error(err instanceof Error ? err.message : "Filter failed"),
               )
             }}
@@ -192,6 +199,7 @@ export function JobsPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

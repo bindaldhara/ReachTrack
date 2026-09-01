@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 from uuid import UUID
@@ -45,6 +46,16 @@ def _clamp_limit(limit: int) -> int:
     if limit > 200:
         return 200
     return limit
+
+
+def _clamp_offset(offset: int) -> int:
+    return max(0, offset)
+
+
+@dataclass
+class ListPage:
+    items: list[Any]
+    total: int
 
 
 def _like_query(q: str) -> str:
@@ -456,23 +467,32 @@ class Store:
         )
 
     async def list_companies(
-        self, user_id: UUID, q: str, limit: int
-    ) -> list[Company]:
+        self, user_id: UUID, q: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
+        where = """
+            user_id = $1
+              and ($2 = '' or name ilike $2 or coalesce(domain, '') ilike $2)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from companies where {where}",
+            user_id,
+            like,
+        )
         rows = await self.pool.fetch(
-            """
+            f"""
             select id, user_id, name, domain, website, linkedin_url, notes, created_at, updated_at
             from companies
-            where user_id = $1
-              and ($2 = '' or name ilike $2 or coalesce(domain, '') ilike $2)
+            where {where}
             order by name asc
-            limit $3
+            limit $3 offset $4
             """,
             user_id,
             like,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_company(row) for row in rows]
+        return ListPage(items=[row_to_company(row) for row in rows], total=total or 0)
 
     async def get_company(self, user_id: UUID, company_id: UUID) -> Company:
         return await self._query_one(
@@ -529,25 +549,35 @@ class Store:
             raise NotFoundError()
 
     async def list_contacts(
-        self, user_id: UUID, q: str, company_id: str, limit: int
-    ) -> list[Contact]:
+        self, user_id: UUID, q: str, company_id: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
-        rows = await self.pool.fetch(
-            """
-            select id, user_id, company_id, first_name, last_name, email, linkedin_url, title, notes, created_at, updated_at
-            from contacts
-            where user_id = $1
+        where = """
+            user_id = $1
               and ($2 = '' or first_name ilike $2 or last_name ilike $2 or coalesce(email, '') ilike $2 or title ilike $2)
               and ($3 = '' or company_id::text = $3)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from contacts where {where}",
+            user_id,
+            like,
+            company_id,
+        )
+        rows = await self.pool.fetch(
+            f"""
+            select id, user_id, company_id, first_name, last_name, email, linkedin_url, title, notes, created_at, updated_at
+            from contacts
+            where {where}
             order by last_name, first_name
-            limit $4
+            limit $4 offset $5
             """,
             user_id,
             like,
             company_id,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_contact(row) for row in rows]
+        return ListPage(items=[row_to_contact(row) for row in rows], total=total or 0)
 
     async def get_contact(self, user_id: UUID, contact_id: UUID) -> Contact:
         return await self._query_one(
@@ -608,25 +638,35 @@ class Store:
             raise NotFoundError()
 
     async def list_jobs(
-        self, user_id: UUID, status: str, q: str, limit: int
-    ) -> list[Job]:
+        self, user_id: UUID, status: str, q: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
-        rows = await self.pool.fetch(
-            """
-            select id, user_id, company_id, title, url, location, status, notes, created_at, updated_at
-            from jobs
-            where user_id = $1
+        where = """
+            user_id = $1
               and ($2 = '' or status = $2)
               and ($3 = '' or title ilike $3 or location ilike $3)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from jobs where {where}",
+            user_id,
+            status,
+            like,
+        )
+        rows = await self.pool.fetch(
+            f"""
+            select id, user_id, company_id, title, url, location, status, notes, created_at, updated_at
+            from jobs
+            where {where}
             order by updated_at desc
-            limit $4
+            limit $4 offset $5
             """,
             user_id,
             status,
             like,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_job(row) for row in rows]
+        return ListPage(items=[row_to_job(row) for row in rows], total=total or 0)
 
     async def get_job(self, user_id: UUID, job_id: UUID) -> Job:
         return await self._query_one(
@@ -685,25 +725,35 @@ class Store:
             raise NotFoundError()
 
     async def list_conversations(
-        self, user_id: UUID, status: str, q: str, limit: int
-    ) -> list[Conversation]:
+        self, user_id: UUID, status: str, q: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
-        rows = await self.pool.fetch(
-            """
-            select id, user_id, contact_id, company_id, job_id, channel, subject, status, last_event_at, created_at, updated_at
-            from conversations
-            where user_id = $1
+        where = """
+            user_id = $1
               and ($2 = '' or status = $2)
               and ($3 = '' or subject ilike $3)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from conversations where {where}",
+            user_id,
+            status,
+            like,
+        )
+        rows = await self.pool.fetch(
+            f"""
+            select id, user_id, contact_id, company_id, job_id, channel, subject, status, last_event_at, created_at, updated_at
+            from conversations
+            where {where}
             order by coalesce(last_event_at, updated_at) desc
-            limit $4
+            limit $4 offset $5
             """,
             user_id,
             status,
             like,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_conversation(row) for row in rows]
+        return ListPage(items=[row_to_conversation(row) for row in rows], total=total or 0)
 
     async def get_conversation(
         self, user_id: UUID, conversation_id: UUID
@@ -776,7 +826,8 @@ class Store:
         status_suggestion: str = "",
         channel: str = "",
         channels: list[str] | None = None,
-    ) -> list[OutreachEvent]:
+        offset: int = 0,
+    ) -> ListPage:
         like = _like_query(q)
         limit_val = _clamp_limit(limit)
         days = follow_up_due_days()
@@ -837,11 +888,23 @@ class Store:
               and {suggestion_sql}
               and {channel_sql}
             order by occurred_at desc
-            limit ${idx}
+            limit ${idx} offset ${idx + 1}
         """
+        count_query = f"""
+            select count(*)::int
+            from outreach_events
+            where user_id = $1
+              and {status_sql}
+              and {type_sql}
+              and {search_sql}
+              and {suggestion_sql}
+              and {channel_sql}
+        """
+        total = await self.pool.fetchval(count_query, *params) or 0
         params.append(limit_val)
+        params.append(_clamp_offset(offset))
         rows = await self.pool.fetch(query, *params)
-        return [row_to_outreach(row) for row in rows]
+        return ListPage(items=[row_to_outreach(row) for row in rows], total=total)
 
     async def _follow_up_was_sent(self, user_id: UUID, event: OutreachEvent) -> bool:
         return bool(
@@ -962,27 +1025,38 @@ class Store:
             raise NotFoundError()
 
     async def list_reminders(
-        self, user_id: UUID, open_only: bool, kind: str, q: str, limit: int
-    ) -> list[Reminder]:
+        self, user_id: UUID, open_only: bool, kind: str, q: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
-        rows = await self.pool.fetch(
-            """
-            select id, user_id, outreach_event_id, conversation_id, kind, due_at, notes, completed_at, created_at, updated_at
-            from reminders
-            where user_id = $1
+        where = """
+            user_id = $1
               and ($2 = false or completed_at is null)
               and ($3 = '' or kind = $3)
               and ($4 = '' or notes ilike $4)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from reminders where {where}",
+            user_id,
+            open_only,
+            kind,
+            like,
+        )
+        rows = await self.pool.fetch(
+            f"""
+            select id, user_id, outreach_event_id, conversation_id, kind, due_at, notes, completed_at, created_at, updated_at
+            from reminders
+            where {where}
             order by due_at asc
-            limit $5
+            limit $5 offset $6
             """,
             user_id,
             open_only,
             kind,
             like,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_reminder(row) for row in rows]
+        return ListPage(items=[row_to_reminder(row) for row in rows], total=total or 0)
 
     async def get_reminder(self, user_id: UUID, reminder_id: UUID) -> Reminder:
         return await self._query_one(
@@ -1040,23 +1114,32 @@ class Store:
             raise NotFoundError()
 
     async def list_todo_emails(
-        self, user_id: UUID, q: str, limit: int
-    ) -> list[TodoEmail]:
+        self, user_id: UUID, q: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
+        where = """
+            user_id = $1
+              and ($2 = '' or subject ilike $2 or recipient ilike $2 or notes ilike $2)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from todo_emails where {where}",
+            user_id,
+            like,
+        )
         rows = await self.pool.fetch(
-            """
+            f"""
             select id, user_id, subject, recipient, notes, created_at, updated_at
             from todo_emails
-            where user_id = $1
-              and ($2 = '' or subject ilike $2 or recipient ilike $2 or notes ilike $2)
+            where {where}
             order by created_at desc
-            limit $3
+            limit $3 offset $4
             """,
             user_id,
             like,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_todo_email(row) for row in rows]
+        return ListPage(items=[row_to_todo_email(row) for row in rows], total=total or 0)
 
     async def get_todo_email(self, user_id: UUID, item_id: UUID) -> TodoEmail:
         return await self._query_one(
@@ -1109,23 +1192,32 @@ class Store:
             raise NotFoundError()
 
     async def list_todo_companies(
-        self, user_id: UUID, q: str, limit: int
-    ) -> list[TodoCompany]:
+        self, user_id: UUID, q: str, limit: int, offset: int = 0
+    ) -> ListPage:
         like = _like_query(q)
+        where = """
+            user_id = $1
+              and ($2 = '' or name ilike $2 or notes ilike $2)
+        """
+        total = await self.pool.fetchval(
+            f"select count(*)::int from todo_companies where {where}",
+            user_id,
+            like,
+        )
         rows = await self.pool.fetch(
-            """
+            f"""
             select id, user_id, company_id, name, notes, created_at, updated_at
             from todo_companies
-            where user_id = $1
-              and ($2 = '' or name ilike $2 or notes ilike $2)
+            where {where}
             order by created_at desc
-            limit $3
+            limit $3 offset $4
             """,
             user_id,
             like,
             _clamp_limit(limit),
+            _clamp_offset(offset),
         )
-        return [row_to_todo_company(row) for row in rows]
+        return ListPage(items=[row_to_todo_company(row) for row in rows], total=total or 0)
 
     async def get_todo_company(self, user_id: UUID, item_id: UUID) -> TodoCompany:
         return await self._query_one(

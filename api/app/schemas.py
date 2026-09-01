@@ -279,6 +279,13 @@ class TodoSummary(CamelModel):
     company_count: int = Field(alias="companyCount")
 
 
+class PaginatedList(CamelModel):
+    items: list[Any]
+    total: int
+    limit: int
+    offset: int
+
+
 class GmailSyncRequest(CamelModel):
     date: str = ""
 

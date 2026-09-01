@@ -185,6 +185,13 @@ export function fromLocalInput(value: string) {
   return new Date(value).toISOString()
 }
 
+export type PaginatedList<T> = {
+  items: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
 export function formatDate(iso: string | null) {
   if (!iso) return "—"
   const d = new Date(iso)

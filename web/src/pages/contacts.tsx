@@ -14,9 +14,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field, RelatedSelect } from "@/components/fields"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { listQuery } from "@/lib/list-query"
-import { contactName, type Company, type Contact } from "@/lib/types"
+import { fetchSelectPage, paginationParams } from "@/lib/pagination"
+import { contactName, type Company, type Contact, type PaginatedList } from "@/lib/types"
 
 const empty = {
   firstName: "",
@@ -38,23 +41,26 @@ export function ContactsPage() {
   const [editing, setEditing] = useState<Contact | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q, nextCompanyId = companyId) {
     const qs = listQuery({
       q: search.trim() || undefined,
       companyId: nextCompanyId || undefined,
+      ...paginationParams(page),
     })
     const [contacts, cos] = await Promise.all([
-      request<Contact[]>(`/api/v1/contacts${qs}`),
-      request<Company[]>("/api/v1/companies"),
+      request<PaginatedList<Contact>>(`/api/v1/contacts${qs}`),
+      request<PaginatedList<Company>>(fetchSelectPage("/api/v1/companies")),
     ])
-    setItems(contacts)
-    setCompanies(cos)
+    setItems(contacts.items)
+    setTotal(contacts.total)
+    setCompanies(cos.items)
   }
 
   useEffect(() => {
     load("").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
-  }, [request])
+  }, [request, page])
 
   function startCreate() {
     setEditing(null)
@@ -112,7 +118,8 @@ export function ContactsPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
+          if (page !== 0) setPage(0)
+          else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Name, email, or title" />
@@ -121,7 +128,8 @@ export function ContactsPage() {
             value={companyId}
             onChange={(id) => {
               setCompanyId(id)
-              load(q, id).catch((err: unknown) =>
+              if (page !== 0) setPage(0)
+              else load(q, id).catch((err: unknown) =>
                 toast.error(err instanceof Error ? err.message : "Filter failed"),
               )
             }}
@@ -169,6 +177,7 @@ export function ContactsPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

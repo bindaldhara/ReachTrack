@@ -14,10 +14,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field } from "@/components/fields"
 import { ApplyFiltersButton, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { useTodoSelection } from "@/hooks/use-todo-selection"
 import { listQuery } from "@/lib/list-query"
-import type { TodoEmail } from "@/lib/types"
+import { paginationParams } from "@/lib/pagination"
+import type { PaginatedList, TodoEmail } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const empty = { subject: "", recipient: "", notes: "" }
@@ -30,16 +33,18 @@ export function TodoEmailsPage() {
   const [editing, setEditing] = useState<TodoEmail | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q) {
-    const qs = listQuery({ q: search.trim() || undefined })
-    const rows = await request<TodoEmail[]>(`/api/v1/todo/emails${qs}`)
-    setItems(rows)
+    const qs = listQuery({ q: search.trim() || undefined, ...paginationParams(page) })
+    const rows = await request<PaginatedList<TodoEmail>>(`/api/v1/todo/emails${qs}`)
+    setItems(rows.items)
+    setTotal(rows.total)
   }
 
   useEffect(() => {
     load("").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
-  }, [request])
+  }, [request, page])
 
   function startCreate() {
     setEditing(null)
@@ -103,7 +108,8 @@ export function TodoEmailsPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
+          if (page !== 0) setPage(0)
+          else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Subject, recipient, or notes" />
@@ -191,6 +197,7 @@ export function TodoEmailsPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

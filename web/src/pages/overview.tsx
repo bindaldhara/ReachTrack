@@ -9,7 +9,7 @@ import { useAuth } from "@/hooks/use-auth"
 import { OUTBOUND_FIRST_MAIL_TYPES, outreachPagePath } from "@/lib/outreach-filters"
 import { listQuery } from "@/lib/list-query"
 import { REMINDER_KIND_LABEL } from "@/lib/labels"
-import type { OutreachEvent, Reminder, Stats } from "@/lib/types"
+import type { OutreachEvent, PaginatedList, Reminder, Stats } from "@/lib/types"
 import { formatDate } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -176,28 +176,28 @@ export function OverviewPage() {
       status: status !== "all" ? status : undefined,
       q: search.trim() || undefined,
     })
-    const rows = await request<OutreachEvent[]>(`/api/v1/outreach-events${qs}`)
-    setRecent(rows)
+    const rows = await request<PaginatedList<OutreachEvent>>(`/api/v1/outreach-events${qs}`)
+    setRecent(rows.items)
   }
 
   async function loadReminders(open = remindersOpen) {
     const qs = listQuery({ limit: "8", open: open ? "true" : "false" })
-    const rows = await request<Reminder[]>(`/api/v1/reminders${qs}`)
-    setReminders(rows)
+    const rows = await request<PaginatedList<Reminder>>(`/api/v1/reminders${qs}`)
+    setReminders(rows.items)
   }
 
   useEffect(() => {
     let cancelled = false
     Promise.all([
       request<Stats>("/api/v1/stats"),
-      request<OutreachEvent[]>("/api/v1/outreach-events?limit=8"),
-      request<Reminder[]>("/api/v1/reminders?open=true&limit=8"),
+      request<PaginatedList<OutreachEvent>>("/api/v1/outreach-events?limit=8"),
+      request<PaginatedList<Reminder>>("/api/v1/reminders?open=true&limit=8"),
     ])
       .then(([s, events, rems]) => {
         if (cancelled) return
         setStats(s)
-        setRecent(events)
-        setReminders(rems)
+        setRecent(events.items)
+        setReminders(rems.items)
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load")

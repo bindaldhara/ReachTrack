@@ -25,7 +25,9 @@ export function filtersFromParams(params: URLSearchParams): OutreachListFilters 
   }
 }
 
-export function outreachListQuery(filters: OutreachListFilters): string {
+export function outreachListQuery(
+  filters: OutreachListFilters & { limit?: string; offset?: string },
+): string {
   const params = new URLSearchParams()
   if (filters.types?.length) params.set("types", filters.types.join(","))
   else if (filters.type) params.set("type", filters.type)
@@ -33,6 +35,8 @@ export function outreachListQuery(filters: OutreachListFilters): string {
   if (filters.statusSuggestion) params.set("statusSuggestion", filters.statusSuggestion)
   if (filters.channel) params.set("channel", filters.channel)
   if (filters.q) params.set("q", filters.q)
+  if (filters.limit) params.set("limit", filters.limit)
+  if (filters.offset) params.set("offset", filters.offset)
   const qs = params.toString()
   return qs ? `?${qs}` : ""
 }

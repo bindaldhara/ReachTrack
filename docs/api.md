@@ -37,7 +37,8 @@ OAuth callback (`GET /api/v1/integrations/gmail/callback`) exchanges the code, s
 
 Each of companies, contacts, jobs, conversations, outreach-events, reminders:
 
-- `GET /api/v1/{collection}` list (`q`, `limit`; `status` / `type` / `open` where noted)
+- `GET /api/v1/{collection}` list — returns `{ "items", "total", "limit", "offset" }` (not a bare array)
+- Query: `limit` (default 50, max 200), `offset` (default 0), plus collection-specific filters below
 - `POST /api/v1/{collection}` create
 - `GET /api/v1/{collection}/{id}`
 - `PUT /api/v1/{collection}/{id}` replace writable fields
@@ -62,10 +63,10 @@ Personal task lists under the sidebar **Todo** section. Marking an item **done**
 
 | Path | List filters | Done |
 |------|--------------|------|
-| `/todo/emails` | `q` | `POST /api/v1/todo/emails/{id}/complete` → 204 (UI supports multi-select bulk complete) |
-| `/todo/companies` | `q` | `POST /api/v1/todo/companies/{id}/complete` → 204 (UI supports multi-select bulk complete) |
+| `/todo/emails` | `q`, `limit`, `offset` | `POST /api/v1/todo/emails/{id}/complete` → 204 (UI supports multi-select bulk complete) |
+| `/todo/companies` | `q`, `limit`, `offset` | `POST /api/v1/todo/companies/{id}/complete` → 204 (UI supports multi-select bulk complete) |
 
-Each also supports `GET` list, `POST` create, `PUT` update, and `DELETE`.
+Each also supports `GET` list (paginated `{ items, total, limit, offset }`), `POST` create, `PUT` update, and `DELETE`.
 
 Todo email body: `{ "subject", "recipient", "notes" }` (at least one of `subject` or `recipient`).
 

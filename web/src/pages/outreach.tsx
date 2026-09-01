@@ -16,8 +16,10 @@ import { ChannelSelect, Field, RelatedSelect, SourceSelect, StatusSelect, TypeSe
 import { PageHeader } from "@/components/page-header"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter } from "@/components/list-filters"
 import { StatusBadge } from "@/components/status-badge"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
 import { CHANNEL_LABEL, TYPE_LABEL } from "@/lib/labels"
+import { paginationParams, fetchSelectPage } from "@/lib/pagination"
 import {
   filtersFromParams,
   outreachFilterLabel,
@@ -33,6 +35,7 @@ import {
   type Contact,
   type Job,
   type OutreachEvent,
+  type PaginatedList,
 } from "@/lib/types"
 
 const empty = {
@@ -64,6 +67,8 @@ export function OutreachPage() {
   const [editing, setEditing] = useState<OutreachEvent | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const [total, setTotal] = useState(0)
+  const page = Math.max(0, Number(params.get("page") || "0") || 0)
   const hasListFilter = Boolean(
     filters.types?.length ||
       filters.type ||
@@ -75,17 +80,19 @@ export function OutreachPage() {
   const filterLabel = outreachFilterLabel(filters)
 
   async function load() {
-    const qs = outreachListQuery(filters)
-    const [rows, cts, cos, js] = await Promise.all([
-      request<OutreachEvent[]>(`/api/v1/outreach-events${qs}`),
-      request<Contact[]>("/api/v1/contacts"),
-      request<Company[]>("/api/v1/companies"),
-      request<Job[]>("/api/v1/jobs"),
+    const pag = paginationParams(page)
+    const qs = outreachListQuery({ ...filters, limit: pag.limit, offset: pag.offset })
+    const [data, cts, cos, js] = await Promise.all([
+      request<PaginatedList<OutreachEvent>>(`/api/v1/outreach-events${qs}`),
+      request<PaginatedList<Contact>>(fetchSelectPage("/api/v1/contacts")),
+      request<PaginatedList<Company>>(fetchSelectPage("/api/v1/companies")),
+      request<PaginatedList<Job>>(fetchSelectPage("/api/v1/jobs")),
     ])
-    setItems(rows)
-    setContacts(cts)
-    setCompanies(cos)
-    setJobs(js)
+    setItems(data.items)
+    setTotal(data.total)
+    setContacts(cts.items)
+    setCompanies(cos.items)
+    setJobs(js.items)
   }
 
   useEffect(() => {
@@ -96,11 +103,19 @@ export function OutreachPage() {
     load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
   }, [request, params])
 
+  function setPage(next: number) {
+    const nextParams = new URLSearchParams(params)
+    if (next <= 0) nextParams.delete("page")
+    else nextParams.set("page", String(next))
+    setSearchParams(nextParams)
+  }
+
   function updateParam(key: string, value: string) {
     const next = new URLSearchParams(params)
     if (value === "all" || !value) next.delete(key)
     else next.set(key, value)
     if (key === "type" && value !== "all") next.delete("types")
+    next.delete("page")
     setSearchParams(next)
   }
 
@@ -113,6 +128,7 @@ export function OutreachPage() {
     const next = new URLSearchParams(params)
     if (searchDraft.trim()) next.set("q", searchDraft.trim())
     else next.delete("q")
+    next.delete("page")
     setSearchParams(next)
   }
 
@@ -304,6 +320,7 @@ export function OutreachPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>

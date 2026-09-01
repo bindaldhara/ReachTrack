@@ -14,10 +14,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field, RelatedSelect } from "@/components/fields"
 import { ApplyFiltersButton, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { useTodoSelection } from "@/hooks/use-todo-selection"
 import { listQuery } from "@/lib/list-query"
-import type { Company, TodoCompany } from "@/lib/types"
+import { fetchSelectPage, paginationParams } from "@/lib/pagination"
+import type { Company, PaginatedList, TodoCompany } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 const empty = { name: "", notes: "", companyId: "" }
@@ -31,20 +34,22 @@ export function TodoCompaniesPage() {
   const [editing, setEditing] = useState<TodoCompany | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q) {
-    const qs = listQuery({ q: search.trim() || undefined })
+    const qs = listQuery({ q: search.trim() || undefined, ...paginationParams(page) })
     const [rows, cos] = await Promise.all([
-      request<TodoCompany[]>(`/api/v1/todo/companies${qs}`),
-      request<Company[]>("/api/v1/companies"),
+      request<PaginatedList<TodoCompany>>(`/api/v1/todo/companies${qs}`),
+      request<PaginatedList<Company>>(fetchSelectPage("/api/v1/companies")),
     ])
-    setItems(rows)
-    setCompanies(cos)
+    setItems(rows.items)
+    setTotal(rows.total)
+    setCompanies(cos.items)
   }
 
   useEffect(() => {
     load("").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
-  }, [request])
+  }, [request, page])
 
   function startCreate() {
     setEditing(null)
@@ -114,7 +119,8 @@ export function TodoCompaniesPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
+          if (page !== 0) setPage(0)
+          else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Company name or notes" />
@@ -196,6 +202,7 @@ export function TodoCompaniesPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

@@ -14,14 +14,18 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field, KindSelect, RelatedSelect } from "@/components/fields"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter, ToggleFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { listQuery } from "@/lib/list-query"
+import { fetchSelectPage, paginationParams } from "@/lib/pagination"
 import { REMINDER_KIND_LABEL } from "@/lib/labels"
 import {
   formatDate,
   fromLocalInput,
   toLocalInput,
   type OutreachEvent,
+  type PaginatedList,
   type Reminder,
 } from "@/lib/types"
 
@@ -44,24 +48,27 @@ export function RemindersPage() {
   const [editing, setEditing] = useState<Reminder | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(nextOpen = openOnly, nextKind = kind, search = q) {
     const qs = listQuery({
       open: nextOpen ? "true" : "false",
       kind: nextKind !== "all" ? nextKind : undefined,
       q: search.trim() || undefined,
+      ...paginationParams(page),
     })
     const [rows, ev] = await Promise.all([
-      request<Reminder[]>(`/api/v1/reminders${qs}`),
-      request<OutreachEvent[]>("/api/v1/outreach-events"),
+      request<PaginatedList<Reminder>>(`/api/v1/reminders${qs}`),
+      request<PaginatedList<OutreachEvent>>(fetchSelectPage("/api/v1/outreach-events")),
     ])
-    setItems(rows)
-    setEvents(ev)
+    setItems(rows.items)
+    setTotal(rows.total)
+    setEvents(ev.items)
   }
 
   useEffect(() => {
     load(true).catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
-  }, [request])
+  }, [request, page])
 
   function startCreate() {
     setEditing(null)
@@ -122,7 +129,8 @@ export function RemindersPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
+          if (page !== 0) setPage(0)
+          else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
         }}
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Notes" />
@@ -132,7 +140,8 @@ export function RemindersPage() {
             allowAll
             onChange={(v) => {
               setKind(v)
-              load(openOnly, v, q).catch((err: unknown) =>
+              if (page !== 0) setPage(0)
+              else load(openOnly, v, q).catch((err: unknown) =>
                 toast.error(err instanceof Error ? err.message : "Filter failed"),
               )
             }}
@@ -148,7 +157,8 @@ export function RemindersPage() {
           onChange={(v) => {
             const nextOpen = v === "open"
             setOpenOnly(nextOpen)
-            load(nextOpen, kind, q).catch((err: unknown) =>
+            if (page !== 0) setPage(0)
+            else load(nextOpen, kind, q).catch((err: unknown) =>
               toast.error(err instanceof Error ? err.message : "Filter failed"),
             )
           }}
@@ -192,6 +202,7 @@ export function RemindersPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

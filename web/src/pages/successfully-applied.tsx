@@ -22,12 +22,23 @@ import { Field, RelatedSelect, StatusSelect } from "@/components/fields"
 import { ApplyFiltersButton, FilterField, ListFilters, SearchFilter, ToggleFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
 import { StatusBadge } from "@/components/status-badge"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { outreachEmailUrl } from "@/lib/gmail"
 import { APPLICATION_CONFIRMATION_CHANNELS } from "@/lib/outreach-filters"
 import { CHANNEL_LABEL } from "@/lib/labels"
 import { listQuery } from "@/lib/list-query"
-import { formatDate, fromLocalInput, toLocalInput, type Company, type Job, type OutreachEvent } from "@/lib/types"
+import { fetchSelectPage, paginationParams } from "@/lib/pagination"
+import {
+  formatDate,
+  fromLocalInput,
+  toLocalInput,
+  type Company,
+  type Job,
+  type OutreachEvent,
+  type PaginatedList,
+} from "@/lib/types"
 
 const emptyForm = {
   subject: "",
@@ -49,6 +60,7 @@ export function SuccessfullyAppliedPage() {
   const [open, setOpen] = useState(false)
   const [form, setForm] = useState(emptyForm)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(nextStatus = status, search = q, onlyRejections = rejectionsOnly) {
     const qs = listQuery({
@@ -57,22 +69,24 @@ export function SuccessfullyAppliedPage() {
       status: nextStatus !== "all" ? nextStatus : undefined,
       q: search.trim() || undefined,
       statusSuggestion: onlyRejections ? "rejected" : undefined,
+      ...paginationParams(page),
     })
     const [rows, cos, js] = await Promise.all([
-      request<OutreachEvent[]>(`/api/v1/outreach-events${qs}`),
-      request<Company[]>("/api/v1/companies"),
-      request<Job[]>("/api/v1/jobs"),
+      request<PaginatedList<OutreachEvent>>(`/api/v1/outreach-events${qs}`),
+      request<PaginatedList<Company>>(fetchSelectPage("/api/v1/companies")),
+      request<PaginatedList<Job>>(fetchSelectPage("/api/v1/jobs")),
     ])
-    setItems(rows)
-    setCompanies(cos)
-    setJobs(js)
+    setItems(rows.items)
+    setTotal(rows.total)
+    setCompanies(cos.items)
+    setJobs(js.items)
   }
 
   useEffect(() => {
     load("all", "", false).catch((err: unknown) =>
       toast.error(err instanceof Error ? err.message : "Load failed"),
     )
-  }, [request])
+  }, [request, page])
 
   async function confirmRejection(id: string) {
     if (!confirm("Mark this application as rejected?")) return
@@ -148,7 +162,8 @@ export function SuccessfullyAppliedPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
+          if (page !== 0) setPage(0)
+          else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Filter failed"))
         }}
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Application subject" />
@@ -158,7 +173,8 @@ export function SuccessfullyAppliedPage() {
             allowAll
             onChange={(v) => {
               setStatus(v)
-              load(v, q, rejectionsOnly).catch((err: unknown) =>
+              if (page !== 0) setPage(0)
+              else load(v, q, rejectionsOnly).catch((err: unknown) =>
                 toast.error(err instanceof Error ? err.message : "Filter failed"),
               )
             }}
@@ -174,7 +190,8 @@ export function SuccessfullyAppliedPage() {
           onChange={(v) => {
             const only = v === "rejections"
             setRejectionsOnly(only)
-            load(status, q, only).catch((err: unknown) =>
+            if (page !== 0) setPage(0)
+            else load(status, q, only).catch((err: unknown) =>
               toast.error(err instanceof Error ? err.message : "Filter failed"),
             )
           }}
@@ -244,6 +261,7 @@ export function SuccessfullyAppliedPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

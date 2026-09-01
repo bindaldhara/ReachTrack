@@ -14,9 +14,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { Field } from "@/components/fields"
 import { ApplyFiltersButton, ListFilters, SearchFilter } from "@/components/list-filters"
 import { PageHeader } from "@/components/page-header"
+import { ListPagination } from "@/components/list-pagination"
 import { useAuth } from "@/hooks/use-auth"
+import { useListPage } from "@/hooks/use-list-page"
 import { listQuery } from "@/lib/list-query"
-import type { Company } from "@/lib/types"
+import { paginationParams } from "@/lib/pagination"
+import type { Company, PaginatedList } from "@/lib/types"
 
 const empty = { name: "", domain: "", website: "", linkedinUrl: "", notes: "" }
 
@@ -28,16 +31,18 @@ export function CompaniesPage() {
   const [editing, setEditing] = useState<Company | null>(null)
   const [form, setForm] = useState(empty)
   const [busy, setBusy] = useState(false)
+  const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q) {
-    const qs = listQuery({ q: search.trim() || undefined })
-    const data = await request<Company[]>(`/api/v1/companies${qs}`)
-    setItems(data)
+    const qs = listQuery({ q: search.trim() || undefined, ...paginationParams(page) })
+    const data = await request<PaginatedList<Company>>(`/api/v1/companies${qs}`)
+    setItems(data.items)
+    setTotal(data.total)
   }
 
   useEffect(() => {
     load("").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
-  }, [request])
+  }, [request, page])
 
   function startCreate() {
     setEditing(null)
@@ -94,7 +99,8 @@ export function CompaniesPage() {
       />
       <ListFilters
         onSubmit={() => {
-          load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
+          if (page !== 0) setPage(0)
+          else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
         <SearchFilter value={q} onChange={setQ} placeholder="Name or domain" />
@@ -133,6 +139,7 @@ export function CompaniesPage() {
           )}
         </TableBody>
       </Table>
+      <ListPagination total={total} page={page} onPageChange={setPage} />
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

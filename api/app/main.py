@@ -4,7 +4,7 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -84,6 +84,21 @@ def query_limit(limit: int | None = None) -> int:
     if limit > 200:
         return 200
     return limit
+
+
+def query_offset(offset: int | None = None) -> int:
+    if offset is None or offset < 0:
+        return 0
+    return offset
+
+
+def paginated_list(page, limit: int, offset: int) -> dict[str, Any]:
+    return {
+        "items": page.items,
+        "total": page.total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 def parse_path_id(raw: str) -> UUID:
@@ -437,10 +452,14 @@ def create_app() -> FastAPI:
         store: Annotated[Store, Depends(get_store)],
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
-        return await _store_call(
-            store.list_companies(user.user_id, q, query_limit(limit))
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_companies(user.user_id, q, limit_val, offset_val)
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/companies", status_code=status.HTTP_201_CREATED)
     async def create_company(
@@ -500,10 +519,14 @@ def create_app() -> FastAPI:
         q: str = "",
         company_id: str = Query("", alias="companyId"),
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
-        return await _store_call(
-            store.list_contacts(user.user_id, q, company_id, query_limit(limit))
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_contacts(user.user_id, q, company_id, limit_val, offset_val)
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/contacts", status_code=status.HTTP_201_CREATED)
     async def create_contact(
@@ -563,10 +586,14 @@ def create_app() -> FastAPI:
         status_filter: str = Query("", alias="status"),
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
-        return await _store_call(
-            store.list_jobs(user.user_id, status_filter, q, query_limit(limit))
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_jobs(user.user_id, status_filter, q, limit_val, offset_val)
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/jobs", status_code=status.HTTP_201_CREATED)
     async def create_job(
@@ -622,12 +649,16 @@ def create_app() -> FastAPI:
         status_filter: str = Query("", alias="status"),
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
-        return await _store_call(
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
             store.list_conversations(
-                user.user_id, status_filter, q, query_limit(limit)
+                user.user_id, status_filter, q, limit_val, offset_val
             )
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/conversations", status_code=status.HTTP_201_CREATED)
     async def create_conversation(
@@ -694,22 +725,27 @@ def create_app() -> FastAPI:
         types_filter: str = Query("", alias="types"),
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
         types = [t.strip() for t in types_filter.split(",") if t.strip()]
         channels = [c.strip() for c in channels_filter.split(",") if c.strip()]
-        return await _store_call(
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
             store.list_outreach(
                 user.user_id,
                 status_filter,
                 event_type,
                 types,
                 q,
-                query_limit(limit),
+                limit_val,
                 status_suggestion,
                 channel_filter,
                 channels or None,
+                offset_val,
             )
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/outreach-events", status_code=status.HTTP_201_CREATED)
     async def create_outreach(
@@ -796,11 +832,15 @@ def create_app() -> FastAPI:
         kind: str = "",
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
         open_only = open != "false"
-        return await _store_call(
-            store.list_reminders(user.user_id, open_only, kind, q, query_limit(limit))
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_reminders(user.user_id, open_only, kind, q, limit_val, offset_val)
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/reminders", status_code=status.HTTP_201_CREATED)
     async def create_reminder(
@@ -866,10 +906,14 @@ def create_app() -> FastAPI:
         store: Annotated[Store, Depends(get_store)],
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
-        return await _store_call(
-            store.list_todo_emails(user.user_id, q, query_limit(limit))
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_todo_emails(user.user_id, q, limit_val, offset_val)
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/todo/emails", status_code=status.HTTP_201_CREATED)
     async def create_todo_email(
@@ -929,10 +973,14 @@ def create_app() -> FastAPI:
         store: Annotated[Store, Depends(get_store)],
         q: str = "",
         limit: int | None = Query(None),
+        offset: int | None = Query(None),
     ):
-        return await _store_call(
-            store.list_todo_companies(user.user_id, q, query_limit(limit))
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_todo_companies(user.user_id, q, limit_val, offset_val)
         )
+        return paginated_list(page, limit_val, offset_val)
 
     @router.post("/todo/companies", status_code=status.HTTP_201_CREATED)
     async def create_todo_company(
