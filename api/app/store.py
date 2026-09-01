@@ -852,10 +852,6 @@ class Store:
         params.append(like)
         idx += 1
 
-        status_expr = outreach_effective_status_sql(f"${idx}")
-        params.append(days)
-        idx += 1
-
         if status_suggestion:
             suggestion_sql = f"status_suggestion = ${idx}"
             params.append(status_suggestion)
@@ -874,6 +870,21 @@ class Store:
         else:
             channel_sql = "true"
 
+        where_sql = f"""
+            where user_id = $1
+              and {status_sql}
+              and {type_sql}
+              and {search_sql}
+              and {suggestion_sql}
+              and {channel_sql}
+        """
+        count_query = f"select count(*)::int from outreach_events {where_sql}"
+        total = await self.pool.fetchval(count_query, *params) or 0
+
+        status_expr = outreach_effective_status_sql(f"${idx}")
+        params.append(days)
+        idx += 1
+
         query = f"""
             select id, user_id, conversation_id, contact_id, company_id, job_id, type, channel, source,
                    {status_expr} as status,
@@ -881,26 +892,10 @@ class Store:
                    status_suggestion, status_suggestion_reason, status_suggestion_snippet,
                    occurred_at, created_at, updated_at
             from outreach_events
-            where user_id = $1
-              and {status_sql}
-              and {type_sql}
-              and {search_sql}
-              and {suggestion_sql}
-              and {channel_sql}
+            {where_sql}
             order by occurred_at desc
             limit ${idx} offset ${idx + 1}
         """
-        count_query = f"""
-            select count(*)::int
-            from outreach_events
-            where user_id = $1
-              and {status_sql}
-              and {type_sql}
-              and {search_sql}
-              and {suggestion_sql}
-              and {channel_sql}
-        """
-        total = await self.pool.fetchval(count_query, *params) or 0
         params.append(limit_val)
         params.append(_clamp_offset(offset))
         rows = await self.pool.fetch(query, *params)
