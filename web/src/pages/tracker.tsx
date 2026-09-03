@@ -20,7 +20,6 @@ import { useListPage } from "@/hooks/use-list-page"
 import { listQuery } from "@/lib/list-query"
 import { paginationParams } from "@/lib/pagination"
 import { formatDate, type PaginatedList, type TrackerEntry } from "@/lib/types"
-import { cn } from "@/lib/utils"
 
 const PLATFORMS = ["YC", "Wellfound", "LinkedIn", "Hacker News", "Company site", "Other"] as const
 
@@ -44,6 +43,7 @@ export function TrackerPage() {
   const [editing, setEditing] = useState<TrackerEntry | null>(null)
   const [form, setForm] = useState(emptyForm)
   const [busy, setBusy] = useState(false)
+  const [toggling, setToggling] = useState<string | null>(null)
   const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q) {
@@ -120,6 +120,29 @@ export function TrackerPage() {
     }
   }
 
+  async function toggleConnection(
+    item: TrackerEntry,
+    field: "linkedinConnected" | "emailConnected",
+    checked: boolean,
+  ) {
+    const key = `${item.id}:${field}`
+    setToggling(key)
+    const previous = items
+    setItems((rows) => rows.map((r) => (r.id === item.id ? { ...r, [field]: checked } : r)))
+    try {
+      const updated = { ...item, [field]: checked }
+      await request(`/api/v1/tracker/${item.id}`, {
+        method: "PUT",
+        body: JSON.stringify(entryToPayload(updated)),
+      })
+    } catch (err) {
+      setItems(previous)
+      toast.error(err instanceof Error ? err.message : "Could not update")
+    } finally {
+      setToggling(null)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -166,10 +189,22 @@ export function TrackerPage() {
                   <JobLinkCell url={row.jobUrl} />
                 </TableCell>
                 <TableCell>
-                  <ConnectionCell connected={row.linkedinConnected} notes={row.linkedinNotes} />
+                  <ConnectionCheckbox
+                    label={`LinkedIn — ${row.companyName}`}
+                    checked={row.linkedinConnected}
+                    notes={row.linkedinNotes}
+                    disabled={toggling === `${row.id}:linkedinConnected`}
+                    onChange={(checked) => toggleConnection(row, "linkedinConnected", checked)}
+                  />
                 </TableCell>
                 <TableCell>
-                  <ConnectionCell connected={row.emailConnected} notes={row.emailNotes} />
+                  <ConnectionCheckbox
+                    label={`Email — ${row.companyName}`}
+                    checked={row.emailConnected}
+                    notes={row.emailNotes}
+                    disabled={toggling === `${row.id}:emailConnected`}
+                    onChange={(checked) => toggleConnection(row, "emailConnected", checked)}
+                  />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
@@ -282,6 +317,20 @@ export function TrackerPage() {
   )
 }
 
+function entryToPayload(item: TrackerEntry) {
+  return {
+    companyName: item.companyName,
+    appliedPlatform: item.appliedPlatform,
+    appliedAt: item.appliedAt ? `${item.appliedAt.slice(0, 10)}T12:00:00.000Z` : "",
+    jobUrl: item.jobUrl ?? "",
+    linkedinConnected: item.linkedinConnected,
+    linkedinNotes: item.linkedinNotes,
+    emailConnected: item.emailConnected,
+    emailNotes: item.emailNotes,
+    notes: item.notes,
+  }
+}
+
 function AppliedCell({ platform, appliedAt }: { platform: string; appliedAt: string | null }) {
   if (!platform && !appliedAt) return <span className="text-muted-foreground">—</span>
   return (
@@ -303,19 +352,33 @@ function JobLinkCell({ url }: { url: string | null }) {
   )
 }
 
-function ConnectionCell({ connected, notes }: { connected: boolean; notes: string }) {
+function ConnectionCheckbox({
+  label,
+  checked,
+  notes,
+  disabled,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  notes: string
+  disabled: boolean
+  onChange: (checked: boolean) => void
+}) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <span
-        className={cn(
-          "inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium",
-          connected
-            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
-            : "bg-muted text-muted-foreground",
-        )}
-      >
-        {connected ? "Yes" : "Not yet"}
-      </span>
+    <div className="flex flex-col gap-1">
+      <label className="flex cursor-pointer items-center gap-2">
+        <input
+          type="checkbox"
+          role="checkbox"
+          aria-label={label}
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="size-4 rounded border-input accent-primary disabled:opacity-50"
+        />
+        <span className="text-sm text-muted-foreground">{checked ? "Done" : "Not yet"}</span>
+      </label>
       {notes ? <span className="max-w-[12rem] truncate text-xs text-muted-foreground">{notes}</span> : null}
     </div>
   )
