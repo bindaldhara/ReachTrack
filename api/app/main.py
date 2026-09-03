@@ -350,6 +350,21 @@ def create_app() -> FastAPI:
     ):
         return await _store_call(store.stats(user.user_id))
 
+    @router.get("/tracker")
+    async def list_tracker(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        q: str = "",
+        limit: int | None = Query(None),
+        offset: int | None = Query(None),
+    ):
+        limit_val = query_limit(limit)
+        offset_val = query_offset(offset)
+        page = await _store_call(
+            store.list_tracker(user.user_id, q, limit_val, offset_val)
+        )
+        return paginated_list(page, limit_val, offset_val)
+
     @router.get("/integrations/gmail")
     async def get_gmail_connection(
         user: Annotated[UserIdentity, Depends(require_user)],

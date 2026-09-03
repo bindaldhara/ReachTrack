@@ -50,6 +50,21 @@ Gmail import also creates or updates `companies`, `contacts`, and `conversations
 
 Gmail import also scans **inbox** for application confirmations from ATS/careers platforms (Greenhouse, Lever, Workday, Ashby, and similar senders) and from **LinkedIn** (`jobs-noreply@linkedin.com`). Matching emails appear under **Successfully applied** (`channel` is `careers_page` or `linkedin`). You can also add applications manually from that page (`source` = `manual`, `type` = `application`). Imported application confirmations are excluded from follow-up-due tracking.
 
+## Tracker view
+
+The **Tracker** page (`GET /api/v1/tracker`) rolls up outreach per company:
+
+| Column   | Source |
+|----------|--------|
+| Company  | `companies.name` |
+| Applied  | Latest `outreach_events` row with `type = application` (`appliedAt`) |
+| Job link | `jobs.url` from the application's `job_id`, or the latest job for that company |
+| LinkedIn | Contact `linkedin_url` when set, otherwise the company `linkedin_url` |
+| Email    | Latest `cold_email` or `referral_request` for that company (`emailAt`, `emailSubject`) |
+| Response | Status from the most recent application, email, reply, or follow-up event |
+
+A company appears when it has at least one application or outbound first-touch email linked via `company_id`.
+
 ## reminders
 
 `kind`: `follow_up`, `reply_needed`, `interview`. Optional links to an outreach event and/or conversation. `completed_at` null means open.

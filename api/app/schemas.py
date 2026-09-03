@@ -193,6 +193,24 @@ class Stats(CamelModel):
     total_companies: int = Field(alias="totalCompanies")
 
 
+class TrackerRow(CamelModel):
+    company_id: UUID = Field(alias="companyId")
+    company_name: str = Field(alias="companyName")
+    applied_at: datetime | None = Field(default=None, alias="appliedAt")
+    application_id: UUID | None = Field(default=None, alias="applicationId")
+    job_url: str | None = Field(default=None, alias="jobUrl")
+    job_title: str = Field(default="", alias="jobTitle")
+    email_at: datetime | None = Field(default=None, alias="emailAt")
+    email_subject: str = Field(default="", alias="emailSubject")
+    email_event_id: UUID | None = Field(default=None, alias="emailEventId")
+    email_source: str | None = Field(default=None, alias="emailSource")
+    email_external_id: str | None = Field(default=None, alias="emailExternalId")
+    linkedin_url: str | None = Field(default=None, alias="linkedinUrl")
+    linkedin_label: str = Field(default="", alias="linkedinLabel")
+    response_status: str = Field(alias="responseStatus")
+    status_suggestion: str | None = Field(default=None, alias="statusSuggestion")
+
+
 class ErrorResponse(CamelModel):
     error: str
 

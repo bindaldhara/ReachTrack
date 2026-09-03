@@ -13,6 +13,7 @@ import {
   UserRound,
   Users,
   Briefcase,
+  ClipboardList,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,6 +28,7 @@ const links = [
   { to: "/", label: "Overview", icon: LayoutDashboard },
   { to: "/outreach", label: "Outreach", icon: Send },
   { to: "/successfully-applied", label: "Successfully applied", icon: CircleCheck },
+  { to: "/tracker", label: "Tracker", icon: ClipboardList },
   { to: "/contacts", label: "Contacts", icon: Users },
   { to: "/companies", label: "Companies", icon: Building2 },
   { to: "/jobs", label: "Jobs", icon: Briefcase },

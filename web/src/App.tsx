@@ -13,6 +13,7 @@ import { SuccessfullyAppliedPage } from "@/pages/successfully-applied"
 import { RemindersPage } from "@/pages/reminders"
 import { TodoCompaniesPage } from "@/pages/todo-companies"
 import { TodoEmailsPage } from "@/pages/todo-emails"
+import { TrackerPage } from "@/pages/tracker"
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/" element={<OverviewPage />} />
               <Route path="/outreach" element={<OutreachPage />} />
               <Route path="/successfully-applied" element={<SuccessfullyAppliedPage />} />
+              <Route path="/tracker" element={<TrackerPage />} />
               <Route path="/careers-page" element={<Navigate to="/successfully-applied" replace />} />
               <Route path="/referrals" element={<Navigate to="/outreach" replace />} />
               <Route path="/contacts" element={<ContactsPage />} />
