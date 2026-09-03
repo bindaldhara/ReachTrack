@@ -1,27 +1,54 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
 import { toast } from "sonner"
+import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Textarea } from "@/components/ui/textarea"
+import { Field } from "@/components/fields"
 import { ApplyFiltersButton, ListFilters, SearchFilter } from "@/components/list-filters"
 import { ListPagination } from "@/components/list-pagination"
 import { PageHeader } from "@/components/page-header"
-import { StatusBadge } from "@/components/status-badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useAuth } from "@/hooks/use-auth"
 import { useListPage } from "@/hooks/use-list-page"
-import { outreachEmailUrl } from "@/lib/gmail"
 import { listQuery } from "@/lib/list-query"
 import { paginationParams } from "@/lib/pagination"
-import { formatDate, type PaginatedList, type TrackerRow } from "@/lib/types"
+import { formatDate, type PaginatedList, type TrackerEntry } from "@/lib/types"
+import { cn } from "@/lib/utils"
+
+const PLATFORMS = ["YC", "Wellfound", "LinkedIn", "Hacker News", "Company site", "Other"] as const
+
+const emptyForm = {
+  companyName: "",
+  appliedPlatform: "",
+  appliedDate: "",
+  jobUrl: "",
+  linkedinConnected: false,
+  linkedinNotes: "",
+  emailConnected: false,
+  emailNotes: "",
+  notes: "",
+}
 
 export function TrackerPage() {
   const { request } = useAuth()
-  const [items, setItems] = useState<TrackerRow[]>([])
+  const [items, setItems] = useState<TrackerEntry[]>([])
   const [q, setQ] = useState("")
+  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<TrackerEntry | null>(null)
+  const [form, setForm] = useState(emptyForm)
+  const [busy, setBusy] = useState(false)
   const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q) {
     const qs = listQuery({ q: search.trim() || undefined, ...paginationParams(page) })
-    const rows = await request<PaginatedList<TrackerRow>>(`/api/v1/tracker${qs}`)
+    const rows = await request<PaginatedList<TrackerEntry>>(`/api/v1/tracker${qs}`)
     setItems(rows.items)
     setTotal(rows.total)
   }
@@ -30,11 +57,75 @@ export function TrackerPage() {
     load("").catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Load failed"))
   }, [request, page])
 
+  function startCreate() {
+    setEditing(null)
+    setForm(emptyForm)
+    setOpen(true)
+  }
+
+  function startEdit(item: TrackerEntry) {
+    setEditing(item)
+    setForm({
+      companyName: item.companyName,
+      appliedPlatform: item.appliedPlatform,
+      appliedDate: item.appliedAt ? item.appliedAt.slice(0, 10) : "",
+      jobUrl: item.jobUrl ?? "",
+      linkedinConnected: item.linkedinConnected,
+      linkedinNotes: item.linkedinNotes,
+      emailConnected: item.emailConnected,
+      emailNotes: item.emailNotes,
+      notes: item.notes,
+    })
+    setOpen(true)
+  }
+
+  async function save() {
+    if (!form.companyName.trim()) {
+      toast.error("Company name is required")
+      return
+    }
+    setBusy(true)
+    try {
+      const payload = {
+        companyName: form.companyName.trim(),
+        appliedPlatform: form.appliedPlatform.trim(),
+        appliedAt: form.appliedDate ? `${form.appliedDate}T12:00:00.000Z` : "",
+        jobUrl: form.jobUrl.trim(),
+        linkedinConnected: form.linkedinConnected,
+        linkedinNotes: form.linkedinNotes.trim(),
+        emailConnected: form.emailConnected,
+        emailNotes: form.emailNotes.trim(),
+        notes: form.notes.trim(),
+      }
+      const body = JSON.stringify(payload)
+      if (editing) await request(`/api/v1/tracker/${editing.id}`, { method: "PUT", body })
+      else await request("/api/v1/tracker", { method: "POST", body })
+      setOpen(false)
+      await load()
+      toast.success(editing ? "Entry updated" : "Entry added")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Save failed")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm("Delete this tracker entry?")) return
+    try {
+      await request(`/api/v1/tracker/${id}`, { method: "DELETE" })
+      await load()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Delete failed")
+    }
+  }
+
   return (
     <div>
       <PageHeader
         title="Tracker"
-        description="One row per company: when you applied, when you emailed, and the latest response."
+        description="Manually log where you applied (YC, Wellfound, etc.), LinkedIn connections, and email outreach."
+        action={<Button onClick={startCreate}>Add entry</Button>}
       />
       <ListFilters
         onSubmit={() => {
@@ -42,7 +133,7 @@ export function TrackerPage() {
           else load().catch((err: unknown) => toast.error(err instanceof Error ? err.message : "Search failed"))
         }}
       >
-        <SearchFilter value={q} onChange={setQ} placeholder="Company name" />
+        <SearchFilter value={q} onChange={setQ} placeholder="Company, platform, or notes" />
         <ApplyFiltersButton />
       </ListFilters>
       <Table>
@@ -53,52 +144,40 @@ export function TrackerPage() {
             <TableHead>Job link</TableHead>
             <TableHead>LinkedIn</TableHead>
             <TableHead>Email</TableHead>
-            <TableHead>Response</TableHead>
+            <TableHead className="w-28" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
               <TableCell colSpan={6} className="text-muted-foreground">
-                No tracked companies yet.{" "}
-                <Link to="/outreach" className="text-primary underline underline-offset-2">
-                  Log outreach
-                </Link>{" "}
-                or{" "}
-                <Link to="/successfully-applied" className="text-primary underline underline-offset-2">
-                  add an application
-                </Link>
-                .
+                No entries yet. Click <strong>Add entry</strong> to log an application on YC, Wellfound, or
+                anywhere else.
               </TableCell>
             </TableRow>
           ) : (
             items.map((row) => (
-              <TableRow key={row.companyId}>
+              <TableRow key={row.id}>
                 <TableCell className="font-medium">{row.companyName}</TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {row.appliedAt ? formatDate(row.appliedAt) : "—"}
+                <TableCell>
+                  <AppliedCell platform={row.appliedPlatform} appliedAt={row.appliedAt} />
                 </TableCell>
                 <TableCell>
-                  <ExternalLinkCell href={row.jobUrl} label={row.jobTitle || "View job"} />
+                  <JobLinkCell url={row.jobUrl} />
                 </TableCell>
                 <TableCell>
-                  <ExternalLinkCell href={row.linkedinUrl} label={row.linkedinLabel || "Profile"} />
+                  <ConnectionCell connected={row.linkedinConnected} notes={row.linkedinNotes} />
                 </TableCell>
                 <TableCell>
-                  <EmailCell row={row} />
+                  <ConnectionCell connected={row.emailConnected} notes={row.emailNotes} />
                 </TableCell>
-                <TableCell>
-                  <div className="flex flex-col gap-1">
-                    <StatusBadge status={row.responseStatus} />
-                    {row.statusSuggestion === "rejected" ? (
-                      <span className="text-xs text-amber-600 dark:text-amber-400">
-                        Possible rejection — review on{" "}
-                        <Link to="/outreach" className="underline underline-offset-2">
-                          Outreach
-                        </Link>
-                      </span>
-                    ) : null}
-                  </div>
+                <TableCell className="text-right">
+                  <Button variant="ghost" size="sm" onClick={() => startEdit(row)}>
+                    Edit
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => remove(row.id)}>
+                    Delete
+                  </Button>
                 </TableCell>
               </TableRow>
             ))
@@ -106,44 +185,138 @@ export function TrackerPage() {
         </TableBody>
       </Table>
       <ListPagination total={total} page={page} onPageChange={setPage} />
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{editing ? "Edit tracker entry" : "New tracker entry"}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-3 py-2">
+            <Field label="Company">
+              <Input
+                value={form.companyName}
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                placeholder="Acme Inc."
+              />
+            </Field>
+            <Field label="Applied on (platform)">
+              <Input
+                list="tracker-platforms"
+                value={form.appliedPlatform}
+                onChange={(e) => setForm({ ...form, appliedPlatform: e.target.value })}
+                placeholder="YC, Wellfound, LinkedIn…"
+              />
+              <datalist id="tracker-platforms">
+                {PLATFORMS.map((platform) => (
+                  <option key={platform} value={platform} />
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Applied date (optional)">
+              <Input
+                type="date"
+                value={form.appliedDate}
+                onChange={(e) => setForm({ ...form, appliedDate: e.target.value })}
+              />
+            </Field>
+            <Field label="Job link (optional)">
+              <Input
+                type="url"
+                value={form.jobUrl}
+                onChange={(e) => setForm({ ...form, jobUrl: e.target.value })}
+                placeholder="https://…"
+              />
+            </Field>
+            <Field label="LinkedIn">
+              <label className="mb-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.linkedinConnected}
+                  onChange={(e) => setForm({ ...form, linkedinConnected: e.target.checked })}
+                  className="size-4 rounded border-input accent-primary"
+                />
+                Connected on LinkedIn
+              </label>
+              <Textarea
+                value={form.linkedinNotes}
+                onChange={(e) => setForm({ ...form, linkedinNotes: e.target.value })}
+                placeholder="Who you connected with, followed, or messaged"
+                rows={2}
+              />
+            </Field>
+            <Field label="Email">
+              <label className="mb-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={form.emailConnected}
+                  onChange={(e) => setForm({ ...form, emailConnected: e.target.checked })}
+                  className="size-4 rounded border-input accent-primary"
+                />
+                Reached out by email
+              </label>
+              <Textarea
+                value={form.emailNotes}
+                onChange={(e) => setForm({ ...form, emailNotes: e.target.value })}
+                placeholder="Who you emailed and any reply notes"
+                rows={2}
+              />
+            </Field>
+            <Field label="Notes (optional)">
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={2}
+              />
+            </Field>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={save} disabled={busy}>
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
 
-function ExternalLinkCell({ href, label }: { href: string | null; label: string }) {
-  if (!href?.trim()) return <span className="text-muted-foreground">—</span>
+function AppliedCell({ platform, appliedAt }: { platform: string; appliedAt: string | null }) {
+  if (!platform && !appliedAt) return <span className="text-muted-foreground">—</span>
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="max-w-[10rem] truncate text-primary hover:underline"
-      title={label}
-    >
-      {label}
+    <div className="flex flex-col gap-0.5">
+      {platform ? <span>{platform}</span> : null}
+      {appliedAt ? (
+        <span className="text-xs text-muted-foreground">{formatDate(appliedAt)}</span>
+      ) : null}
+    </div>
+  )
+}
+
+function JobLinkCell({ url }: { url: string | null }) {
+  if (!url?.trim()) return <span className="text-muted-foreground">—</span>
+  return (
+    <a href={url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+      Open
     </a>
   )
 }
 
-function EmailCell({ row }: { row: TrackerRow }) {
-  if (!row.emailAt) return <span className="text-muted-foreground">—</span>
-
-  const href =
-    row.emailSource && row.emailExternalId
-      ? outreachEmailUrl({ source: row.emailSource, externalId: row.emailExternalId })
-      : null
-  const label = row.emailSubject || "Email sent"
-
+function ConnectionCell({ connected, notes }: { connected: boolean; notes: string }) {
   return (
     <div className="flex flex-col gap-0.5">
-      <span className="whitespace-nowrap text-xs text-muted-foreground">{formatDate(row.emailAt)}</span>
-      {href ? (
-        <a href={href} target="_blank" rel="noreferrer" className="max-w-xs truncate hover:underline">
-          {label}
-        </a>
-      ) : (
-        <span className="max-w-xs truncate">{label}</span>
-      )}
+      <span
+        className={cn(
+          "inline-flex w-fit rounded-full px-2 py-0.5 text-xs font-medium",
+          connected
+            ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+            : "bg-muted text-muted-foreground",
+        )}
+      >
+        {connected ? "Yes" : "Not yet"}
+      </span>
+      {notes ? <span className="max-w-[12rem] truncate text-xs text-muted-foreground">{notes}</span> : null}
     </div>
   )
 }

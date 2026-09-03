@@ -142,22 +142,20 @@ export type TodoSummary = {
   companyCount: number
 }
 
-export type TrackerRow = {
-  companyId: string
+export type TrackerEntry = {
+  id: string
+  userId: string
   companyName: string
+  appliedPlatform: string
   appliedAt: string | null
-  applicationId: string | null
   jobUrl: string | null
-  jobTitle: string
-  emailAt: string | null
-  emailSubject: string
-  emailEventId: string | null
-  emailSource: Source | null
-  emailExternalId: string | null
-  linkedinUrl: string | null
-  linkedinLabel: string
-  responseStatus: Status
-  statusSuggestion: "rejected" | null
+  linkedinConnected: boolean
+  linkedinNotes: string
+  emailConnected: boolean
+  emailNotes: string
+  notes: string
+  createdAt: string
+  updatedAt: string
 }
 
 export type OutreachDashboard = {

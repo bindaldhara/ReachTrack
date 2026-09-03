@@ -37,7 +37,7 @@ from app.schemas import (
     TodoCompany,
     TodoEmail,
     TodoSummary,
-    TrackerRow,
+    TrackerEntry,
 )
 
 
@@ -186,24 +186,22 @@ def row_to_outreach(row: asyncpg.Record) -> OutreachEvent:
     )
 
 
-def row_to_tracker(row: asyncpg.Record) -> TrackerRow:
-    return TrackerRow.model_validate(
+def row_to_tracker_entry(row: asyncpg.Record) -> TrackerEntry:
+    return TrackerEntry.model_validate(
         {
-            "companyId": row["company_id"],
+            "id": row["id"],
+            "userId": row["user_id"],
             "companyName": row["company_name"],
+            "appliedPlatform": row["applied_platform"],
             "appliedAt": row["applied_at"],
-            "applicationId": row["application_id"],
             "jobUrl": row["job_url"],
-            "jobTitle": row["job_title"] or "",
-            "emailAt": row["email_at"],
-            "emailSubject": row["email_subject"] or "",
-            "emailEventId": row["email_event_id"],
-            "emailSource": row["email_source"],
-            "emailExternalId": row["email_external_id"],
-            "linkedinUrl": row["linkedin_url"],
-            "linkedinLabel": row["linkedin_label"] or "",
-            "responseStatus": row["response_status"],
-            "statusSuggestion": row["status_suggestion"],
+            "linkedinConnected": row["linkedin_connected"],
+            "linkedinNotes": row["linkedin_notes"],
+            "emailConnected": row["email_connected"],
+            "emailNotes": row["email_notes"],
+            "notes": row["notes"],
+            "createdAt": row["created_at"],
+            "updatedAt": row["updated_at"],
         }
     )
 
@@ -1042,119 +1040,110 @@ class Store:
         if result.split()[-1] == "0":
             raise NotFoundError()
 
-    async def list_tracker(
+    async def list_tracker_entries(
         self, user_id: UUID, q: str, limit: int, offset: int = 0
     ) -> ListPage:
         like = _like_query(q)
-        limit_val = _clamp_limit(limit)
-        offset_val = _clamp_offset(offset)
         where = """
-            c.user_id = $1
-              and ($2 = '' or c.name ilike $2)
+            user_id = $1
+              and (
+                $2 = ''
+                or company_name ilike $2
+                or applied_platform ilike $2
+                or linkedin_notes ilike $2
+                or email_notes ilike $2
+                or notes ilike $2
+              )
         """
-        count_query = f"""
-            with active_companies as (
-              select distinct oe.company_id
-              from outreach_events oe
-              where oe.user_id = $1
-                and oe.company_id is not null
-                and oe.type in ('application', 'cold_email', 'referral_request')
-            )
-            select count(*)::int
-            from companies c
-            join active_companies ac on ac.company_id = c.id
+        total = await self.pool.fetchval(
+            f"select count(*)::int from tracker_entries where {where}",
+            user_id,
+            like,
+        )
+        rows = await self.pool.fetch(
+            f"""
+            select id, user_id, company_name, applied_platform, applied_at, job_url,
+                   linkedin_connected, linkedin_notes, email_connected, email_notes, notes,
+                   created_at, updated_at
+            from tracker_entries
             where {where}
-        """
-        query = f"""
-            with active_companies as (
-              select distinct oe.company_id
-              from outreach_events oe
-              where oe.user_id = $1
-                and oe.company_id is not null
-                and oe.type in ('application', 'cold_email', 'referral_request')
-            ),
-            ranked_applications as (
-              select company_id, occurred_at, id, status, job_id,
-                row_number() over (partition by company_id order by occurred_at desc) as rn
-              from outreach_events
-              where user_id = $1 and type = 'application' and company_id is not null
-            ),
-            ranked_emails as (
-              select company_id, occurred_at, subject, id, source, external_id, status,
-                row_number() over (partition by company_id order by occurred_at desc) as rn
-              from outreach_events
-              where user_id = $1
-                and type in ('cold_email', 'referral_request')
-                and company_id is not null
-            ),
-            ranked_response as (
-              select company_id, status, status_suggestion,
-                row_number() over (partition by company_id order by occurred_at desc) as rn
-              from outreach_events
-              where user_id = $1
-                and company_id is not null
-                and type in (
-                  'application', 'cold_email', 'referral_request', 'email_reply', 'follow_up'
-                )
-            ),
-            ranked_jobs as (
-              select company_id, url, title,
-                row_number() over (partition by company_id order by created_at desc) as rn
-              from jobs
-              where user_id = $1 and company_id is not null
-            ),
-            ranked_contacts as (
-              select company_id, linkedin_url, first_name, last_name,
-                row_number() over (partition by company_id order by updated_at desc) as rn
-              from contacts
-              where user_id = $1
-                and company_id is not null
-                and linkedin_url is not null
-                and trim(linkedin_url) <> ''
-            )
-            select
-              c.id as company_id,
-              c.name as company_name,
-              ra.occurred_at as applied_at,
-              ra.id as application_id,
-              coalesce(j_app.url, j_co.url) as job_url,
-              coalesce(j_app.title, j_co.title, '') as job_title,
-              re.occurred_at as email_at,
-              re.subject as email_subject,
-              re.id as email_event_id,
-              re.source as email_source,
-              re.external_id as email_external_id,
-              coalesce(
-                nullif(trim(rc.linkedin_url), ''),
-                nullif(trim(c.linkedin_url), '')
-              ) as linkedin_url,
-              case
-                when rc.linkedin_url is not null and trim(rc.linkedin_url) <> ''
-                  then trim(concat(rc.first_name, ' ', rc.last_name))
-                when c.linkedin_url is not null and trim(c.linkedin_url) <> ''
-                  then 'Company page'
-                else ''
-              end as linkedin_label,
-              coalesce(rr.status, ra.status, re.status, 'waiting') as response_status,
-              rr.status_suggestion
-            from companies c
-            join active_companies ac on ac.company_id = c.id
-            left join ranked_applications ra on ra.company_id = c.id and ra.rn = 1
-            left join jobs j_app on j_app.id = ra.job_id and j_app.user_id = $1
-            left join ranked_jobs j_co on j_co.company_id = c.id and j_co.rn = 1
-            left join ranked_emails re on re.company_id = c.id and re.rn = 1
-            left join ranked_response rr on rr.company_id = c.id and rr.rn = 1
-            left join ranked_contacts rc on rc.company_id = c.id and rc.rn = 1
-            where {where}
-            order by greatest(
-              coalesce(ra.occurred_at, 'epoch'::timestamptz),
-              coalesce(re.occurred_at, 'epoch'::timestamptz)
-            ) desc
+            order by coalesce(applied_at, created_at) desc
             limit $3 offset $4
-        """
-        total = await self.pool.fetchval(count_query, user_id, like) or 0
-        rows = await self.pool.fetch(query, user_id, like, limit_val, offset_val)
-        return ListPage(items=[row_to_tracker(row) for row in rows], total=total)
+            """,
+            user_id,
+            like,
+            _clamp_limit(limit),
+            _clamp_offset(offset),
+        )
+        return ListPage(
+            items=[row_to_tracker_entry(row) for row in rows], total=total or 0
+        )
+
+    async def create_tracker_entry(self, item: TrackerEntry) -> TrackerEntry:
+        return await self._query_one(
+            """
+            insert into tracker_entries (
+              user_id, company_name, applied_platform, applied_at, job_url,
+              linkedin_connected, linkedin_notes, email_connected, email_notes, notes
+            )
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            returning id, user_id, company_name, applied_platform, applied_at, job_url,
+                      linkedin_connected, linkedin_notes, email_connected, email_notes, notes,
+                      created_at, updated_at
+            """,
+            item.user_id,
+            item.company_name,
+            item.applied_platform,
+            item.applied_at,
+            item.job_url,
+            item.linkedin_connected,
+            item.linkedin_notes,
+            item.email_connected,
+            item.email_notes,
+            item.notes,
+            mapper=row_to_tracker_entry,
+        )
+
+    async def update_tracker_entry(self, item: TrackerEntry) -> TrackerEntry:
+        return await self._query_one(
+            """
+            update tracker_entries
+            set company_name = $3,
+                applied_platform = $4,
+                applied_at = $5,
+                job_url = $6,
+                linkedin_connected = $7,
+                linkedin_notes = $8,
+                email_connected = $9,
+                email_notes = $10,
+                notes = $11
+            where id = $1 and user_id = $2
+            returning id, user_id, company_name, applied_platform, applied_at, job_url,
+                      linkedin_connected, linkedin_notes, email_connected, email_notes, notes,
+                      created_at, updated_at
+            """,
+            item.id,
+            item.user_id,
+            item.company_name,
+            item.applied_platform,
+            item.applied_at,
+            item.job_url,
+            item.linkedin_connected,
+            item.linkedin_notes,
+            item.email_connected,
+            item.email_notes,
+            item.notes,
+            mapper=row_to_tracker_entry,
+        )
+
+    async def delete_tracker_entry(self, user_id: UUID, item_id: UUID) -> None:
+        result = await self.pool.execute(
+            "delete from tracker_entries where id = $1 and user_id = $2",
+            item_id,
+            user_id,
+        )
+        if result.split()[-1] == "0":
+            raise NotFoundError()
 
     async def list_reminders(
         self, user_id: UUID, open_only: bool, kind: str, q: str, limit: int, offset: int = 0

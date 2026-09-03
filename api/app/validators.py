@@ -28,6 +28,8 @@ from app.schemas import (
     TodoCompanyRequest,
     TodoEmail,
     TodoEmailRequest,
+    TrackerEntry,
+    TrackerEntryRequest,
 )
 
 
@@ -231,6 +233,33 @@ def todo_company_from_request(user_id: UUID, req: TodoCompanyRequest) -> TodoCom
         user_id=user_id,
         company_id=company_id,
         name=name,
+        notes=req.notes.strip(),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+    )
+
+
+def tracker_entry_from_request(user_id: UUID, req: TrackerEntryRequest) -> TrackerEntry:
+    company_name = req.company_name.strip()
+    if not company_name:
+        raise ValueError("companyName is required")
+    applied_at = None
+    if req.applied_at.strip():
+        try:
+            applied_at = datetime.fromisoformat(req.applied_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("appliedAt must be RFC3339") from exc
+    return TrackerEntry(
+        id=uuid4(),
+        user_id=user_id,
+        company_name=company_name,
+        applied_platform=req.applied_platform.strip(),
+        applied_at=applied_at,
+        job_url=empty_to_nil(req.job_url),
+        linkedin_connected=req.linkedin_connected,
+        linkedin_notes=req.linkedin_notes.strip(),
+        email_connected=req.email_connected,
+        email_notes=req.email_notes.strip(),
         notes=req.notes.strip(),
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),

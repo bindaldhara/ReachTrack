@@ -57,6 +57,7 @@ from app.schemas import (
     ReminderRequest,
     TodoCompanyRequest,
     TodoEmailRequest,
+    TrackerEntryRequest,
     TodoSummary,
 )
 from app.store import Store
@@ -69,6 +70,7 @@ from app.validators import (
     reminder_from_request,
     todo_company_from_request,
     todo_email_from_request,
+    tracker_entry_from_request,
 )
 
 logger = logging.getLogger(__name__)
@@ -351,7 +353,7 @@ def create_app() -> FastAPI:
         return await _store_call(store.stats(user.user_id))
 
     @router.get("/tracker")
-    async def list_tracker(
+    async def list_tracker_entries(
         user: Annotated[UserIdentity, Depends(require_user)],
         store: Annotated[Store, Depends(get_store)],
         q: str = "",
@@ -361,9 +363,50 @@ def create_app() -> FastAPI:
         limit_val = query_limit(limit)
         offset_val = query_offset(offset)
         page = await _store_call(
-            store.list_tracker(user.user_id, q, limit_val, offset_val)
+            store.list_tracker_entries(user.user_id, q, limit_val, offset_val)
         )
         return paginated_list(page, limit_val, offset_val)
+
+    @router.post("/tracker", status_code=status.HTTP_201_CREATED)
+    async def create_tracker_entry(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        body: TrackerEntryRequest,
+    ):
+        try:
+            item = tracker_entry_from_request(user.user_id, body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        return await _store_call(store.create_tracker_entry(item))
+
+    @router.put("/tracker/{item_id}")
+    async def update_tracker_entry(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+        body: TrackerEntryRequest,
+    ):
+        try:
+            item = tracker_entry_from_request(user.user_id, body)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+            ) from exc
+        item.id = parse_path_id(item_id)
+        return await _store_call(store.update_tracker_entry(item))
+
+    @router.delete("/tracker/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_tracker_entry(
+        user: Annotated[UserIdentity, Depends(require_user)],
+        store: Annotated[Store, Depends(get_store)],
+        item_id: str,
+    ) -> Response:
+        await _store_call(
+            store.delete_tracker_entry(user.user_id, parse_path_id(item_id))
+        )
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @router.get("/integrations/gmail")
     async def get_gmail_connection(

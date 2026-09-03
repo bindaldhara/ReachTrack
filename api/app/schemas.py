@@ -193,22 +193,32 @@ class Stats(CamelModel):
     total_companies: int = Field(alias="totalCompanies")
 
 
-class TrackerRow(CamelModel):
-    company_id: UUID = Field(alias="companyId")
+class TrackerEntry(CamelModel):
+    id: UUID
+    user_id: UUID = Field(alias="userId")
     company_name: str = Field(alias="companyName")
+    applied_platform: str = Field(alias="appliedPlatform")
     applied_at: datetime | None = Field(default=None, alias="appliedAt")
-    application_id: UUID | None = Field(default=None, alias="applicationId")
     job_url: str | None = Field(default=None, alias="jobUrl")
-    job_title: str = Field(default="", alias="jobTitle")
-    email_at: datetime | None = Field(default=None, alias="emailAt")
-    email_subject: str = Field(default="", alias="emailSubject")
-    email_event_id: UUID | None = Field(default=None, alias="emailEventId")
-    email_source: str | None = Field(default=None, alias="emailSource")
-    email_external_id: str | None = Field(default=None, alias="emailExternalId")
-    linkedin_url: str | None = Field(default=None, alias="linkedinUrl")
-    linkedin_label: str = Field(default="", alias="linkedinLabel")
-    response_status: str = Field(alias="responseStatus")
-    status_suggestion: str | None = Field(default=None, alias="statusSuggestion")
+    linkedin_connected: bool = Field(alias="linkedinConnected")
+    linkedin_notes: str = Field(alias="linkedinNotes")
+    email_connected: bool = Field(alias="emailConnected")
+    email_notes: str = Field(alias="emailNotes")
+    notes: str
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
+class TrackerEntryRequest(CamelModel):
+    company_name: str = Field(alias="companyName")
+    applied_platform: str = Field(default="", alias="appliedPlatform")
+    applied_at: str = Field(default="", alias="appliedAt")
+    job_url: str = Field(default="", alias="jobUrl")
+    linkedin_connected: bool = Field(default=False, alias="linkedinConnected")
+    linkedin_notes: str = Field(default="", alias="linkedinNotes")
+    email_connected: bool = Field(default=False, alias="emailConnected")
+    email_notes: str = Field(default="", alias="emailNotes")
+    notes: str = ""
 
 
 class ErrorResponse(CamelModel):
