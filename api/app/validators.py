@@ -260,6 +260,7 @@ def tracker_entry_from_request(user_id: UUID, req: TrackerEntryRequest) -> Track
         linkedin_notes=req.linkedin_notes.strip(),
         email_connected=req.email_connected,
         email_notes=req.email_notes.strip(),
+        referral=req.referral.strip(),
         notes=req.notes.strip(),
         created_at=datetime.now(UTC),
         updated_at=datetime.now(UTC),

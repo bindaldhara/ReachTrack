@@ -199,6 +199,7 @@ def row_to_tracker_entry(row: asyncpg.Record) -> TrackerEntry:
             "linkedinNotes": row["linkedin_notes"],
             "emailConnected": row["email_connected"],
             "emailNotes": row["email_notes"],
+            "referral": row["referral"] or "",
             "notes": row["notes"],
             "createdAt": row["created_at"],
             "updatedAt": row["updated_at"],
@@ -1052,6 +1053,7 @@ class Store:
                 or applied_platform ilike $2
                 or linkedin_notes ilike $2
                 or email_notes ilike $2
+                or referral ilike $2
                 or notes ilike $2
               )
         """
@@ -1063,11 +1065,11 @@ class Store:
         rows = await self.pool.fetch(
             f"""
             select id, user_id, company_name, applied_platform, applied_at, job_url,
-                   linkedin_connected, linkedin_notes, email_connected, email_notes, notes,
+                   linkedin_connected, linkedin_notes, email_connected, email_notes, referral, notes,
                    created_at, updated_at
             from tracker_entries
             where {where}
-            order by coalesce(applied_at, created_at) desc
+            order by lower(company_name) asc
             limit $3 offset $4
             """,
             user_id,
@@ -1084,11 +1086,11 @@ class Store:
             """
             insert into tracker_entries (
               user_id, company_name, applied_platform, applied_at, job_url,
-              linkedin_connected, linkedin_notes, email_connected, email_notes, notes
+              linkedin_connected, linkedin_notes, email_connected, email_notes, referral, notes
             )
-            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
             returning id, user_id, company_name, applied_platform, applied_at, job_url,
-                      linkedin_connected, linkedin_notes, email_connected, email_notes, notes,
+                      linkedin_connected, linkedin_notes, email_connected, email_notes, referral, notes,
                       created_at, updated_at
             """,
             item.user_id,
@@ -1100,6 +1102,7 @@ class Store:
             item.linkedin_notes,
             item.email_connected,
             item.email_notes,
+            item.referral,
             item.notes,
             mapper=row_to_tracker_entry,
         )
@@ -1116,10 +1119,11 @@ class Store:
                 linkedin_notes = $8,
                 email_connected = $9,
                 email_notes = $10,
-                notes = $11
+                referral = $11,
+                notes = $12
             where id = $1 and user_id = $2
             returning id, user_id, company_name, applied_platform, applied_at, job_url,
-                      linkedin_connected, linkedin_notes, email_connected, email_notes, notes,
+                      linkedin_connected, linkedin_notes, email_connected, email_notes, referral, notes,
                       created_at, updated_at
             """,
             item.id,
@@ -1132,6 +1136,7 @@ class Store:
             item.linkedin_notes,
             item.email_connected,
             item.email_notes,
+            item.referral,
             item.notes,
             mapper=row_to_tracker_entry,
         )

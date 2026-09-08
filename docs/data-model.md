@@ -61,6 +61,7 @@ Manual application tracker — independent of Gmail import and outreach events.
 | Job link | `job_url` |
 | LinkedIn | `linkedin_connected`, `linkedin_notes` |
 | Email    | `email_connected`, `email_notes` |
+| Referral | `referral` (free text) |
 
 API: `GET/POST /api/v1/tracker`, `PUT/DELETE /api/v1/tracker/{id}`.
 

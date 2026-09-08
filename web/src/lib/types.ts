@@ -153,6 +153,7 @@ export type TrackerEntry = {
   linkedinNotes: string
   emailConnected: boolean
   emailNotes: string
+  referral: string
   notes: string
   createdAt: string
   updatedAt: string

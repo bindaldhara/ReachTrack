@@ -32,6 +32,7 @@ const emptyForm = {
   linkedinNotes: "",
   emailConnected: false,
   emailNotes: "",
+  referral: "",
   notes: "",
 }
 
@@ -44,6 +45,7 @@ export function TrackerPage() {
   const [form, setForm] = useState(emptyForm)
   const [busy, setBusy] = useState(false)
   const [toggling, setToggling] = useState<string | null>(null)
+  const [savingReferral, setSavingReferral] = useState<string | null>(null)
   const { page, setPage, total, setTotal } = useListPage()
 
   async function load(search = q) {
@@ -74,6 +76,7 @@ export function TrackerPage() {
       linkedinNotes: item.linkedinNotes,
       emailConnected: item.emailConnected,
       emailNotes: item.emailNotes,
+      referral: item.referral,
       notes: item.notes,
     })
     setOpen(true)
@@ -95,6 +98,7 @@ export function TrackerPage() {
         linkedinNotes: form.linkedinNotes.trim(),
         emailConnected: form.emailConnected,
         emailNotes: form.emailNotes.trim(),
+        referral: form.referral.trim(),
         notes: form.notes.trim(),
       }
       const body = JSON.stringify(payload)
@@ -143,6 +147,25 @@ export function TrackerPage() {
     }
   }
 
+  async function saveReferral(item: TrackerEntry, referral: string) {
+    if (referral === item.referral) return
+    setSavingReferral(item.id)
+    const previous = items
+    setItems((rows) => rows.map((r) => (r.id === item.id ? { ...r, referral } : r)))
+    try {
+      const updated = { ...item, referral }
+      await request(`/api/v1/tracker/${item.id}`, {
+        method: "PUT",
+        body: JSON.stringify(entryToPayload(updated)),
+      })
+    } catch (err) {
+      setItems(previous)
+      toast.error(err instanceof Error ? err.message : "Could not save referral")
+    } finally {
+      setSavingReferral(null)
+    }
+  }
+
   return (
     <div>
       <PageHeader
@@ -167,13 +190,14 @@ export function TrackerPage() {
             <TableHead>Job link</TableHead>
             <TableHead>LinkedIn</TableHead>
             <TableHead>Email</TableHead>
+            <TableHead>Referral</TableHead>
             <TableHead className="w-28" />
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={6} className="text-muted-foreground">
+              <TableCell colSpan={7} className="text-muted-foreground">
                 No entries yet. Click <strong>Add entry</strong> to log an application on YC, Wellfound, or
                 anywhere else.
               </TableCell>
@@ -204,6 +228,13 @@ export function TrackerPage() {
                     notes={row.emailNotes}
                     disabled={toggling === `${row.id}:emailConnected`}
                     onChange={(checked) => toggleConnection(row, "emailConnected", checked)}
+                  />
+                </TableCell>
+                <TableCell>
+                  <ReferralCell
+                    item={row}
+                    disabled={savingReferral === row.id}
+                    onSave={(referral) => saveReferral(row, referral)}
                   />
                 </TableCell>
                 <TableCell className="text-right">
@@ -295,6 +326,13 @@ export function TrackerPage() {
                 rows={2}
               />
             </Field>
+            <Field label="Referral (optional)">
+              <Input
+                value={form.referral}
+                onChange={(e) => setForm({ ...form, referral: e.target.value })}
+                placeholder="Referral contact or how you got in"
+              />
+            </Field>
             <Field label="Notes (optional)">
               <Textarea
                 value={form.notes}
@@ -327,6 +365,7 @@ function entryToPayload(item: TrackerEntry) {
     linkedinNotes: item.linkedinNotes,
     emailConnected: item.emailConnected,
     emailNotes: item.emailNotes,
+    referral: item.referral,
     notes: item.notes,
   }
 }
@@ -349,6 +388,37 @@ function JobLinkCell({ url }: { url: string | null }) {
     <a href={url} target="_blank" rel="noreferrer" className="text-primary hover:underline">
       Open
     </a>
+  )
+}
+
+function ReferralCell({
+  item,
+  disabled,
+  onSave,
+}: {
+  item: TrackerEntry
+  disabled: boolean
+  onSave: (referral: string) => void
+}) {
+  const [value, setValue] = useState(item.referral)
+
+  useEffect(() => {
+    setValue(item.referral)
+  }, [item.referral])
+
+  return (
+    <Input
+      value={value}
+      disabled={disabled}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onSave(value.trim())}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur()
+      }}
+      placeholder="Name or note"
+      className="min-w-[9rem]"
+      aria-label={`Referral for ${item.companyName}`}
+    />
   )
 }
 

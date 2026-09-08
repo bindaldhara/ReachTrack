@@ -204,6 +204,7 @@ class TrackerEntry(CamelModel):
     linkedin_notes: str = Field(alias="linkedinNotes")
     email_connected: bool = Field(alias="emailConnected")
     email_notes: str = Field(alias="emailNotes")
+    referral: str = ""
     notes: str
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
@@ -218,6 +219,7 @@ class TrackerEntryRequest(CamelModel):
     linkedin_notes: str = Field(default="", alias="linkedinNotes")
     email_connected: bool = Field(default=False, alias="emailConnected")
     email_notes: str = Field(default="", alias="emailNotes")
+    referral: str = ""
     notes: str = ""
 
 

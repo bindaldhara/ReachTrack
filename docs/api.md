@@ -18,12 +18,12 @@ JSON uses camelCase. Timestamps are RFC3339.
 - `GET /api/v1/me`
 - `PATCH /api/v1/me` body: `{ "fullName", "timezone" }`
 - `GET /api/v1/stats` dashboard counts — `outreachDashboard` has `firstMailSent`, `careersPageApplications`, `followUpsTaken`, `replies`, `possibleRejections` (AI suggestions to review), `rejections` (confirmed), `followUpDue`
-- `GET /api/v1/tracker` manual application log — paginated `{ items, total, limit, offset }`. Query: `q`, `limit`, `offset`
+- `GET /api/v1/tracker` manual application log — paginated `{ items, total, limit, offset }`, sorted by company name A–Z. Query: `q`, `limit`, `offset`
 - `POST /api/v1/tracker` create entry
 - `PUT /api/v1/tracker/{id}` update entry
 - `DELETE /api/v1/tracker/{id}` delete entry
 
-Tracker body: `{ companyName, appliedPlatform, appliedAt, jobUrl, linkedinConnected, linkedinNotes, emailConnected, emailNotes, notes }` (`companyName` required).
+Tracker body: `{ companyName, appliedPlatform, appliedAt, jobUrl, linkedinConnected, linkedinNotes, emailConnected, emailNotes, referral, notes }` (`companyName` required).
 
 ## Gmail integration
 
