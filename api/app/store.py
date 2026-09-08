@@ -1069,7 +1069,7 @@ class Store:
                    created_at, updated_at
             from tracker_entries
             where {where}
-            order by lower(company_name) asc
+            order by created_at desc
             limit $3 offset $4
             """,
             user_id,
